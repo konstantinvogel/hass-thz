@@ -5,4 +5,6 @@ It is based on the respective FHEM-Module by Immi.
 
 I neither claim that it will work nor that it's safe to use but until now my heatpump didn't explode.
 
-Feel free to try it out and give me
+Feel free to try it out and give me feedback.
+
+Right now the basic readings and settings are implemented, the rest will follow soon.
