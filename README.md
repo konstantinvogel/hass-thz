@@ -8,3 +8,9 @@ I neither claim that it will work nor that it's safe to use but until now my hea
 Feel free to try it out and give me feedback.
 
 Right now the basic readings and settings are implemented, the rest will follow soon.
+
+Working devices and firmwares that are confirmed right now:
+
+LWZ5 with 7.59
+
+Setup is in the UI, add Integration and seach for "Stiebel Eltron LWZ / Tecalor THZ Integration"
