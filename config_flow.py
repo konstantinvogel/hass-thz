@@ -69,6 +69,7 @@ class THZConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Handle log level configuration."""
         if user_input is not None:
             self.connection_data["log_level"] = LOG_LEVELS[user_input["log_level"]]
+            return await self.async_step_detect_blocks()
         
         schema = vol.Schema({
             vol.Required("log_level", default="Info"): vol.In(list(LOG_LEVELS.keys())),

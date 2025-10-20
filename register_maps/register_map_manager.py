@@ -81,81 +81,34 @@ class RegisterMapManager_Write(BaseRegisterMapManager):
         merged = deepcopy(base)
         merged.update(override)
         return merged
-        
-
-# class RegisterMapManager:
-#     def __init__(self, firmware_version: str):
-#         self.firmware_version = firmware_version
-#         self._base_map = self._load_register_map("register_map_all")
-#         self._command_map = self._load_register_map(f"register_map_{firmware_version}")
-#         self._merged_map = self._merge_maps(self._base_map, self._command_map)
-
-#     def _load_register_map(self, module_name: str) -> Dict[str, List[RegisterEntry]]:
-#         mod = sys.modules.get(module_name)
-#         if mod is not None:
-#             full_map = deepcopy(mod.REGISTER_MAP)
-#             # Filter raus, was keine Liste ist → z.B. "firmware": "206"
-#             return {k: v for k, v in full_map.items() if isinstance(v, list)}
-#         else:
-#             return {}
-
-#     def _merge_maps(
-#         self,
-#         base: Dict[str, List[RegisterEntry]],
-#         override: Dict[str, List[RegisterEntry]],
-#     ) -> Dict[str, List[RegisterEntry]]:
-#         merged = deepcopy(base)
-#         for block, entries in override.items():
-#             if block in merged:
-#                 override_names = {e[0] for e in entries}
-#                 # Behalte alte, die nicht überschrieben werden, füge neue hinzu
-#                 merged[block] = [e for e in merged[block] if e[0] not in override_names] + entries
-#             else:
-#                 merged[block] = entries
-#         return merged
-
-#     def get_all_registers(self) -> Dict[str, List[RegisterEntry]]:
-#         return self._merged_map
-
-#     def get_registers_for_block(self, block: str) -> List[RegisterEntry]:
-#         return self._merged_map.get(block, [])
-
-#     def get_firmware_version(self) -> str:
-#         return self.firmware_version
     
-# class RegisterMapManager_Write:
-#     def __init__(self, firmware_version: str):
-#         self.firmware_version = firmware_version
-#         self._base_map = self._load_register_map("write_map_all")
-#         self._command_map = self._load_register_map(f"write_map_{firmware_version}")
-#         self._merged_map = self._merge_maps(self._base_map, self._command_map)
-
-#     def _load_register_map(self, module_name: str) -> Dict[str, dict]:
-#         mod = sys.modules.get(module_name)
-#         if mod is not None:
-#             full_map = deepcopy(mod.WRITE_MAP)
-#             # Filter raus, was kein dict ist
-#             return {k: v for k, v in full_map.items() if isinstance(v, dict)}
-#         else:
-#             return {}
-
-#     def _merge_maps(
-#         self,
-#         base: Dict[str, List[RegisterEntry_Write]],
-#         override: Dict[str, List[RegisterEntry_Write]],
-#     ) -> Dict[str, List[RegisterEntry_Write]]:
-#         merged = deepcopy(base)
-#         for block, entries in override.items():
-#             if block in merged:
-#                 override_names = {e[0] for e in entries}
-#                 # Behalte alte, die nicht überschrieben werden, füge neue hinzu
-#                 merged[block] = [e for e in merged[block] if e[0] not in override_names] + entries
-#             else:
-#                 merged[block] = entries
-#         return merged
-
-#     def get_all_registers(self) -> Dict[str, List[RegisterEntry_Write]]:
-#         return self._merged_map
-
-#     def get_firmware_version(self) -> str:
-#         return self.firmware_version
+    #     $attrVal = "4.39" if (($cmd eq "del") and ($attrName eq "firmware"));
+    # if ( $attrName eq "firmware" )  {  
+    #     if ($attrVal eq "2.06") {
+    #         %sets = %sets206;
+    #         %gets = (%getsonly2xx, %getsonly206, %sets);
+    #     }
+    #     elsif ($attrVal eq "2.14") {
+    #         %sets = (%sets206, %setsonly214);
+    #         %gets = (%getsonly2xx, %getsonly214, %sets206);
+    #     }
+    #     elsif ($attrVal eq "2.14j") {
+    #         %sets = (%sets206, %setsonly214);
+    #         %gets = (%getsonly2xx, %getsonly214j, %sets206);
+    #     }
+    #     elsif ($attrVal eq "5.39") {
+    #         %sets=(%sets439539common, %sets539only);
+    #         %gets=(%getsonly539, %sets);
+    #     }
+    #     elsif ($attrVal eq "5.39technician") {
+    #         %sets=(%sets439539common, %sets539only, %setsX39technician);
+    #         %gets=(%getsonly539, %sets);
+    #     }
+    #     elsif ($attrVal eq "4.39technician") {
+    #         %sets=(%sets439539common, %sets439only, %setsX39technician);
+    #         %gets=(%getsonly439, %sets);
+    #     }
+    #     else { #in all other cases I assume $attrVal eq "4.39" cambiato nella v0140
+    #         %sets=(%sets439539common, %sets439only);
+    #         %gets=(%getsonly439, %sets);
+    #     }

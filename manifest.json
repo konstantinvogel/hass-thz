@@ -1,6 +1,6 @@
 {
   "domain": "thz",
-  "name": "Stiebel Eltron LWZ /Tecalor THZ Home Assistant Integration",
+  "name": "Stiebel Eltron LWZ / Tecalor THZ Integration (unofficial)",
   "version": "0.0.1",
   "documentation": "https://github.com/bigbadoooff/thz-home-assistant",
   "dependencies": [],
