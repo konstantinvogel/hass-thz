@@ -22,11 +22,11 @@ class BaseRegisterMapManager:
         entry_type: type,
     ):
         self.firmware_version = firmware_version
-        self._base_map = self._load_register_map(base_map_name, map_attr, entry_type)
-        self._command_map = self._load_register_map(f"{command_map_name}_{firmware_version}", map_attr, entry_type)
+        self._base_map = self._load_map(base_map_name, map_attr, entry_type)
+        self._command_map = self._load_map(f"{command_map_name}_{firmware_version}", map_attr, entry_type)
         self._merged_map = self._merge_maps(self._base_map, self._command_map)
 
-    def _load_register_map(self, module_name: str, map_attr: str, entry_type: type) -> Dict[str, any]:
+    def _load_map(self, module_name: str, map_attr: str, entry_type: type) -> Dict[str, any]:
         package_prefix = __package__
         full_module_name = f"{package_prefix}.{module_name}"
         mod = sys.modules.get(full_module_name)
@@ -56,6 +56,19 @@ class BaseRegisterMapManager:
 
     def get_firmware_version(self) -> str:
         return self.firmware_version
+    
+    @property
+    def register_map(self) -> list[str]:
+        return self.register_map
+    
+    @property
+    def readings_map(self) -> list[str]:
+        return self.readings_map
+    
+    @property
+    def write_map(self) -> list[str]:
+        return self.write_map
+
 
 class RegisterMapManager(BaseRegisterMapManager):
     def __init__(self, firmware_version: str):
@@ -81,6 +94,8 @@ class RegisterMapManager_Write(BaseRegisterMapManager):
         merged = deepcopy(base)
         merged.update(override)
         return merged
+    
+
     
     #     $attrVal = "4.39" if (($cmd eq "del") and ($attrName eq "firmware"));
     # if ( $attrName eq "firmware" )  {  
