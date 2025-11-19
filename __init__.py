@@ -1,13 +1,14 @@
-from homeassistant.config_entries import ConfigEntry # pyright: ignore[reportMissingImports, reportMissingModuleSource]
+'''Init file for THZ integration.'''
+from datetime import timedelta
+import logging
+from homeassistant.config_entries import ConfigEntry # pylint: ignore[reportMissingImports, reportMissingModuleSource]
 from homeassistant.core import HomeAssistant # pyright: ignore[reportMissingImports, reportMissingModuleSource]
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed # pyright: ignore[reportMissingImports, reportMissingModuleSource]
-from datetime import timedelta
-
 from homeassistant.helpers.discovery import load_platform # pyright: ignore[reportMissingImports, reportMissingModuleSource]
+
 from .const import DOMAIN
 from .thz_device import THZDevice
-from .register_maps.register_map_manager import RegisterMapManager, RegisterMapManager_Write
-import logging
+from .register_maps.register_map_manager import RegisterMapManager, RegisterMapManagerWrite
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -15,7 +16,6 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
     """Set up THZ from config entry."""
-    import logging
 
     log_level_str = config_entry.data.get("log_level", "info")
     _LOGGER.setLevel(getattr(logging, log_level_str.upper(), logging.INFO))

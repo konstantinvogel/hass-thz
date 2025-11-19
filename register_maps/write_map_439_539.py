@@ -1,3 +1,44 @@
+"""
+Module: /Home Assistant/custom_components/thz/register_maps/write_map_439_539.py
+Module-level constant:
+    WRITE_MAP (dict): Mapping of parameter identifiers to metadata required to
+    construct write commands for the THZ device/register map (addresses 0x439-0x539).
+Each entry in WRITE_MAP is keyed by a string parameter identifier and the value
+is a dictionary with the following fields:
+    - command (str): Hex string identifying the target command/register (e.g. "0A0112").
+    - min (str|number): Minimum allowed value for the parameter (empty string if not applicable).
+    - max (str|number): Maximum allowed value for the parameter (empty string if not applicable).
+    - unit (str): Human-readable unit (may include a leading space, e.g. " °C", " %").
+    - step (str|float|int): Minimum increment/step for the parameter.
+    - type (str): Data entry widget/type hint (e.g. "number", "select", "time").
+    - device_class (str): Home Assistant device_class hint (may be empty).
+    - icon (str): Icon identifier for UI representation (may be empty).
+    - decode_type (str): Internal encoding/decoding hint used by the integration to
+      format or parse payloads when writing or reading. Examples observed in this map:
+        - "*temp" (e.g. "5temp", "4temp"): temperature-like values, usually encoded
+          with a fractional resolution (commonly tenths) — validate against min/max
+          and scale appropriately before packing.
+        - "opmode" (e.g. "2opmode"): enumerated operating modes (select list).
+        - "gradient" (e.g. "6gradient"): slope/gradient values, typically float.
+        - "*clean" (e.g. "0clean", "1clean"): integer/clean numeric values (no fractional encoding).
+        - "time", "7prog", "8party", "9holy": clock/time or program-slot encodings that
+          require special formatting (HH:MM or program-specific packing).
+      Note: decode_type values are integration-specific hints — consult the integration's
+      encoder/decoder functions to see exact packing rules.
+Usage notes (high-level):
+    - To write a value:
+        1. Lookup the metadata: meta = WRITE_MAP[param_id]
+        2. Validate the value against meta["min"]/meta["max"] (if provided).
+        3. Apply scaling/formatting according to meta["decode_type"] (e.g. multiply
+           temperatures by 10 for one-decimal fixed-point encoding).
+        4. Encode the formatted value into the payload expected by the device and
+           append/associate with meta["command"] when sending.
+    - For UI generation, the fields "type", "unit", "step", "device_class", and "icon"
+      provide hints for building controls (numeric sliders, time pickers, selects, etc).
+This mapping is intended to be authoritative for the specified register range and is
+used by the custom component to provide both UI controls and the correct wire-format
+when issuing write commands to the THZ device.
+"""
 WRITE_MAP = {
 "pOpMode":{"command":"0A0112","min":"","max":"","unit":"","step":"","type":"select","device_class":"","icon":"mdi:swap-horizontal","decode_type":"2opmode"},
 "p01RoomTempDayHC1":{"command":"0B0005","min":"12","max":"32","unit":" °C","step":0.1,"type":"number","device_class":"measurement","icon":"mdi:thermometer","decode_type":"5temp"},

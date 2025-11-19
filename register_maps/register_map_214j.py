@@ -1,6 +1,6 @@
 REGISTER_MAP = {
 	"firmware": "214j",
-	"F4hc1214j": [("outsideTemp: ",	4, 4, "hex2int", 10),	(" x08: ",		8, 4, "raw", 1),
+	"F4": [("outsideTemp: ",	4, 4, "hex2int", 10),	(" x08: ",		8, 4, "raw", 1),
  	      (" returnTemp: ",		12, 4, "hex2int", 10),	(" integralHeat: ",	16, 4, "hex2int", 1),
 	      (" flowTemp: ",		20, 4, "hex2int", 10),	(" heatSetTemp: ", 	24, 4, "hex2int", 10),
 	      (" heatTemp: ",		28, 4, "hex2int", 10), 

@@ -1,3 +1,5 @@
+'''
+This module defines a register map for all supported THZ firmware versions.'''
 REGISTER_MAP = {
 	"firmware": "all",
 	"pxxFB": [
@@ -107,7 +109,7 @@ REGISTER_MAP = {
 		(" offHysteresisNo: ", 34, 2, "hex", 1),
 		(" hcBoosterStage: ", 36, 2, "hex", 1)
 	],
-    
+
 	"pxxFC" : [
         ("Weekday: ",	5, 1, "weekday", 1),	
         (" Hour: ",	6, 2, "hex", 1),
@@ -117,14 +119,14 @@ REGISTER_MAP = {
           ("/", 		14, 2, "hex", 1),
 	      ("/", 		16, 2, "hex", 1)
 		],
-		    
+
 	"pxxFD" : [("version: ", 	4, 4, "hexdate", 1)
 	     ],
-         
+
 	"pxxFE" : [("HW: ",		30,  2, "hex", 1), 	(" SW: ",	32,  4, "swver", 1),
 	      (" Date: ",		36, 22, "hex2ascii", 1)
 	     ],
-         
+
 	"pxx0A0176" : [("switchingProg: ",	11, 1, "bit0", 1),  (" compressor: ",	11, 1, "bit1", 1),
 	      (" heatingHC: ",		11, 1, "bit2", 1),  (" heatingDHW: ",	10, 1, "bit0", 1),
 	      (" boosterHC: ",		10, 1, "bit1", 1),  (" filterBoth: ",	 9, 1, "bit0", 1),

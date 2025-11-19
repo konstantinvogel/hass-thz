@@ -2,7 +2,7 @@
 import logging
 from homeassistant.helpers.entity import Entity # pyright: ignore[reportMissingImports, reportMissingModuleSource]
 from .thz_device import THZDevice
-from .register_maps.register_map_manager import RegisterMapManager, RegisterMapManager_Write
+from .register_maps.register_map_manager import RegisterMapManager, RegisterMapManagerWrite
 from .sensor_meta import SENSOR_META
 import asyncio
 
@@ -13,7 +13,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
     # 4. Mapping setzen
     register_manager: RegisterMapManager = hass.data["thz"]["register_manager"]
-    write_manager: RegisterMapManager_Write = hass.data["thz"]["write_manager"]
+    write_manager: RegisterMapManagerWrite = hass.data["thz"]["write_manager"]
     device: THZDevice = hass.data["thz"]["device"]
 
     # 5. Sensoren anlegen

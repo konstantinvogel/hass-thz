@@ -1,6 +1,6 @@
 REGISTER_MAP = {
 	"firmware": "214",
-        "F4hc1214": [("outsideTemp: ",	 4, 4, "hex2int", 10),	(" x08: ",		 8, 4, "raw", 1),
+        "F4": [("outsideTemp: ",	 4, 4, "hex2int", 10),	(" x08: ",		 8, 4, "raw", 1),
  	      (" returnTemp: ",		12, 4, "hex2int", 10),	(" integralHeat: ",	16, 4, "hex2int", 1),
 	      (" flowTemp: ",		20, 4, "hex2int", 10),	(" heatSetTemp: ", 	24, 4, "hex2int", 10), 
 	      (" heatTemp: ",		28, 4, "hex2int", 10),  
@@ -13,7 +13,7 @@ REGISTER_MAP = {
 	      (" hcBoosterStage: ",	36, 2, "hex", 1)
 		],
 
-  "FBglob214": [("outsideTemp: ", 	8, 4, "hex2int", 10),	(" flowTemp: ",		12, 4, "hex2int", 10),
+  "FB": [("outsideTemp: ", 	8, 4, "hex2int", 10),	(" flowTemp: ",		12, 4, "hex2int", 10),
 	      (" returnTemp: ",		16, 4, "hex2int", 10),	(" hotGasTemp: ", 	20, 4, "hex2int", 10),
 	      (" dhwTemp: ",	 	24, 4, "hex2int", 10),	(" flowTempHC2: ",	28, 4, "hex2int", 10),
 	      (" evaporatorTemp: ",	36, 4, "hex2int", 10),	(" condenserTemp: ",	40, 4, "hex2int", 10),

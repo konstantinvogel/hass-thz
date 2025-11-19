@@ -1,18 +1,109 @@
 READINGS_MAP = {
-	"firmware": "539",
-  "sFlowRate": {"cmd2":"0A033B", "type" :"1clean", "unit" :" cl/min"},
-  "sHumMaskingTime": {"cmd2":"0A064F", type :"1clean", "unit" :" min"},
-  "sHumThreshold": {"cmd2":"0A0650", type :"1clean", "unit" :" %"},
-  "sHeatingRelPower": {"cmd2":"0A069A", type :"1clean", "unit" :" %"},
-  "sComprRelPower": {"cmd2":"0A069B", type :"1clean", "unit" :" %"},
-  "sComprRotUnlimit": {"cmd2":"0A069C", type :"1clean", "unit" :" Hz"},
-  "sComprRotLimit": {"cmd2":"0A069D", type :"1clean", "unit" :" Hz"},
-  "sOutputReduction"	: {"cmd2":"0A06A4", type :"1clean", "unit" :" %"},
-  "sOutputIncrease"	: {"cmd2":"0A06A5", type :"1clean", "unit" :" %"},
-  "sHumProtection"	: {"cmd2":"0A09D1", type :"1clean", "unit" :""},
-  "sSetHumidityMin"	: {"cmd2":"0A09D2", type :"1clean", "unit" :" %"},
-  "sSetHumidityMax"	: {"cmd2":"0A09D3", type :"1clean", "unit" :" %"},
-  "sCoolHCTotal"	: {"cmd2":"0A0648", "cmd3" :"0A0649", type :"1clean", "unit" :" kWh"},
-  "sDewPointHC1"	: {"cmd2":"0B0264", type :"5temp",  "unit" :" °C"},
-  "sDewPointHC2"	: {"cmd2":"0C0264", type :"5temp",  "unit" :" °C"}
+  "firmware": "539",
+  "sFlowRate": {
+    "command": "0A033B",
+    "unit": "cl/min",
+    "device_class": "measurement",
+    "icon": "mdi:water",
+    "decode_type": "1clean"
+  },
+  "sHumMaskingTime": {
+    "command": "0A064F",
+    "unit": "min",
+    "device_class": "measurement",
+    "icon": "mdi:clock",
+    "decode_type": "1clean"
+  },
+  "sHumThreshold": {
+    "command": "0A0650",
+    "unit": "%",
+    "device_class": "measurement",
+    "icon": "mdi:percent",
+    "decode_type": "1clean"
+  },
+  "sHeatingRelPower": {
+    "command": "0A069A",
+    "unit": "%",
+    "device_class": "measurement",
+    "icon": "mdi:percent",
+    "decode_type": "1clean"
+  },
+  "sComprRelPower": {
+    "command": "0A069B",
+    "unit": "%",
+    "device_class": "measurement",
+    "icon": "mdi:percent",
+    "decode_type": "1clean"
+  },
+  "sComprRotUnlimit": {
+    "command": "0A069C",
+    "unit": "Hz",
+    "device_class": "measurement",
+    "icon": "mdi:fan",
+    "decode_type": "1clean"
+  },
+  "sComprRotLimit": {
+    "command": "0A069D",
+    "unit": "Hz",
+    "device_class": "measurement",
+    "icon": "mdi:fan",
+    "decode_type": "1clean"
+  },
+  "sOutputReduction": {
+    "command": "0A06A4",
+    "unit": "%",
+    "device_class": "measurement",
+    "icon": "mdi:percent",
+    "decode_type": "1clean"
+  },
+  "sOutputIncrease": {
+    "command": "0A06A5",
+    "unit": "%",
+    "device_class": "measurement",
+    "icon": "mdi:percent",
+    "decode_type": "1clean"
+  },
+  "sHumProtection": {
+    "command": "0A09D1",
+    "unit": "",
+    "device_class": "measurement",
+    "icon": "mdi:information-outline",
+    "decode_type": "1clean"
+  },
+  "sSetHumidityMin": {
+    "command": "0A09D2",
+    "unit": "%",
+    "device_class": "measurement",
+    "icon": "mdi:percent",
+    "decode_type": "1clean"
+  },
+  "sSetHumidityMax": {
+    "command": "0A09D3",
+    "unit": "%",
+    "device_class": "measurement",
+    "icon": "mdi:percent",
+    "decode_type": "1clean"
+  },
+  "sCoolHCTotal": {
+    "command": "0A0648",
+    "command2": "0A0649",
+    "unit": "kWh",
+    "device_class": "measurement",
+    "icon": "mdi:flash",
+    "decode_type": "1clean"
+  },
+  "sDewPointHC1": {
+    "command": "0B0264",
+    "unit": "°C",
+    "device_class": "measurement",
+    "icon": "mdi:thermometer",
+    "decode_type": "5temp"
+  },
+  "sDewPointHC2": {
+    "command": "0C0264",
+    "unit": "°C",
+    "device_class": "measurement",
+    "icon": "mdi:thermometer",
+    "decode_type": "5temp"
+  }
 }

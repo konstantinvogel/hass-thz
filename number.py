@@ -1,23 +1,24 @@
+'''THZ Number Entity Platform'''
+import logging
+
 from homeassistant.components.number import NumberEntity # pyright: ignore[reportMissingImports, reportMissingModuleSource]
-from .register_maps.register_map_manager import RegisterMapManager_Write
+from .register_maps.register_map_manager import RegisterMapManagerWrite
 from .thz_device import THZDevice
 from .const import DOMAIN
-import asyncio
 
-import logging
 
 _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
-# ... create THZNumber entities ...
+    """Set up THZ number entities from config entry."""
     entities = []
-    write_manager: RegisterMapManager_Write = hass.data[DOMAIN]["write_manager"]
+    write_manager: RegisterMapManagerWrite = hass.data[DOMAIN]["write_manager"]
     device: THZDevice = hass.data[DOMAIN]["device"]
     write_registers = write_manager.get_all_registers()
-    _LOGGER.debug(f"write_registers: {write_registers}")
+    _LOGGER.debug("write_registers: %s", write_registers)
     for name, entry in write_registers.items():
         if entry["type"] == "number":
-            _LOGGER.debug(f"Creating THZNumber for {name} with command {entry['command']}")
+            _LOGGER.debug("Creating THZNumber for %s with command %s", name, entry["command"])
             entity = THZNumber(
                 name=name,
                 command=entry["command"],
@@ -34,7 +35,10 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         
     async_add_entities(entities)
 class THZNumber(NumberEntity):
-    def __init__(self, name:str, command:bytes, min_value, max_value, step, unit, device_class, device, icon=None, unique_id=None):
+    """Representation of a THZ Number entity."""
+    def __init__(self, name:str, command:bytes, min_value,
+                 max_value, step, unit, device_class,
+                 device, icon=None, unique_id=None):
         self._attr_name = name
         self._command = command
         self._attr_native_min_value = float(min_value) if min_value != "" else None
@@ -49,18 +53,21 @@ class THZNumber(NumberEntity):
 
     @property
     def native_value(self):
+        '''Return the native value of the number.'''
         return self._attr_native_value
 
     async def async_update(self):
+        '''Fetch new state data for the number.'''
         # _LOGGER.debug(f"Updating number {self._attr_name} with command {self._command}")
         async with self._device.lock:
-            value_bytes = await self.hass.async_add_executor_job(self._device.read_value, bytes.fromhex(self._command), "get", 4, 2)
+            value_bytes = await self.hass.async_add_executor_job(self._device.read_value, 
+                                                                 bytes.fromhex(self._command), "get", 4, 2)
         value = int.from_bytes(value_bytes, byteorder='big', signed=False)*self._attr_native_step
         self._attr_native_value = value
 
     async def async_set_native_value(self, value: float):
+        '''Set new value for the number.'''
         value_int = int(value)
         async with self._device.lock:
             await self.hass.async_add_executor_job(self._device.write_value, bytes.fromhex(self._command), value_int/self._attr_native_step)
         self._attr_native_value = value
-

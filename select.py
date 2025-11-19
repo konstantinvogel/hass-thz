@@ -1,9 +1,11 @@
-from homeassistant.components.select import SelectEntity # pyright: ignore[reportMissingImports, reportMissingModuleSource]
-from .register_maps.register_map_manager import RegisterMapManager_Write
-from .thz_device import THZDevice
+'''Select entity for THZ integration.'''
 import asyncio
-
 import logging
+
+from homeassistant.components.select import SelectEntity # pyright: ignore[reportMissingImports, reportMissingModuleSource]
+from .register_maps.register_map_manager import RegisterMapManagerWrite
+from .thz_device import THZDevice
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -17,15 +19,15 @@ SELECT_MAP = {
 }
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
-# ... create THZSelect entities ...
+    '''create THZSelect entities'''
     entities = []
-    write_manager: RegisterMapManager_Write = hass.data["thz"]["write_manager"]
+    write_manager: RegisterMapManagerWrite = hass.data["thz"]["write_manager"]
     device: THZDevice = hass.data["thz"]["device"]
     write_registers = write_manager.get_all_registers()
-    _LOGGER.debug(f"write_registers: {write_registers}")
+    _LOGGER.debug("write_registers: %s", write_registers)
     for name, entry in write_registers.items():
         if entry["type"] == "select":
-            _LOGGER.debug(f"Creating Select for {name} with command {entry['command']}")
+            _LOGGER.debug("Creating Select for %s with command %s", name, entry['command'])
             entity = THZSelect(
                 name=name,
                 command=entry["command"],
@@ -43,6 +45,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
     async_add_entities(entities)
 class THZSelect(SelectEntity):
+    '''Representation of a THZ Select entity.'''
     _attr_should_poll = True
 
     def __init__(self, name: str, command, min_value, max_value, step, unit, device_class, decode_type: str, device, icon=None, unique_id=None,  options=None):
@@ -55,43 +58,45 @@ class THZSelect(SelectEntity):
 
         if decode_type in SELECT_MAP:
             self._attr_options = list(SELECT_MAP[decode_type].values())
-            _LOGGER.debug(f"Options for {name} ({decode_type}): {self._attr_options}")
+            _LOGGER.debug("Options for %s (%s): %s", name, decode_type, self._attr_options)
 
         self._attr_current_option = None
 
     @property
     def current_option(self):
+        '''Return the current option.'''
         return self._attr_current_option
 
     async def async_update(self):
+        '''Fetch new state data for the select.'''
         # Read the value from the device and map it to an option
         async with self._device.lock:
             value_bytes = await self.hass.async_add_executor_job(self._device.read_value, bytes.fromhex(self._command), "get", 4, 2)
-            _LOGGER.debug(f"Read bytes for {self._attr_name} ({self._command}): {value_bytes.hex() if value_bytes else 'None'}")
+            _LOGGER.debug("Read bytes for %s (%s): %s", self._attr_name, self._command, value_bytes.hex() if value_bytes else 'None')
         value = int.from_bytes(value_bytes, byteorder='little', signed=False)
-        _LOGGER.debug(f"Value for {self._attr_name} ({self._command}): {value}")
+        _LOGGER.debug("Value for %s (%s): %s", self._attr_name, self._command, value)
         # Map value to option string (you must define this mapping)
         if self._decode_type in SELECT_MAP:
             value_str = str(value).zfill(2) if self._decode_type == "SomWinMode" else str(value)
-            _LOGGER.debug(f"Mapping value {value_str} to option for {self._attr_name} ({self._command})")
+            _LOGGER.debug("Mapping value %s to option for %s (%s)", value_str, self._attr_name, self._command)
             self._attr_current_option = SELECT_MAP[self._decode_type].get(value_str, None)
-            _LOGGER.debug(f"Current option for {self._attr_name} ({self._command}): {self._attr_current_option}")
+            _LOGGER.debug("Current option for %s (%s): %s", self._attr_name, self._command, self._attr_current_option)
         else:
             self._attr_current_option = None
 
     async def select_option(self, option: str):
+        '''Set the selected option.'''
         # Map option string back to value
         if self._decode_type in SELECT_MAP:
             reverse_map = {v: int(k) for k, v in SELECT_MAP[self._decode_type].items()}
             if option in reverse_map:
-                _LOGGER.debug(f"Setting {self._attr_name} to {option} (value: {reverse_map[option]})")
+                _LOGGER.debug("Setting %s to %s (value: %s)", self._attr_name, option, reverse_map[option])
                 value_int = reverse_map[option]
-                _LOGGER.debug(f"Writing value {value_int} to command {self._command}")
+                _LOGGER.debug("Writing value %s to command %s", value_int, self._command)
                 value_bytes = value_int.to_bytes(2, byteorder='little', signed=False)
-                _LOGGER.debug(f"Value bytes to write: {value_bytes.hex()}")
+                _LOGGER.debug("Value bytes to write: %s", value_bytes.hex())
                 async with self._device.lock:
                     await self.hass.async_add_executor_job(self._device.write_value(bytes.fromhex(self._command), value_bytes))
                     await asyncio.sleep(0.01)  # Kurze Pause, um sicherzustellen, dass das Gerät bereit ist
-                _LOGGER.debug(f"Set {self._attr_name} to {option} (value: {value_int})")
+                _LOGGER.debug("Set %s to %s (value: %s)", self._attr_name, option, value_int)
                 self._attr_current_option = option
-

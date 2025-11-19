@@ -1,5 +1,5 @@
 from homeassistant.components.switch import SwitchEntity # pyright: ignore[reportMissingImports, reportMissingModuleSource]
-from .register_maps.register_map_manager import RegisterMapManager_Write
+from .register_maps.register_map_manager import RegisterMapManagerWrite
 from .thz_device import THZDevice
 import asyncio
 
@@ -9,7 +9,7 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     entities = []
-    write_manager: RegisterMapManager_Write = hass.data["thz"]["write_manager"]
+    write_manager: RegisterMapManagerWrite = hass.data["thz"]["write_manager"]
     device: THZDevice = hass.data["thz"]["device"]
     write_registers = write_manager.get_all_registers()
     _LOGGER.debug(f"write_registers: {write_registers}")

@@ -4,7 +4,7 @@ import time
 import asyncio
 import logging
 from . import const
-from .register_maps.register_map_manager import RegisterMapManager, RegisterMapManager_Write
+from .register_maps.register_map_manager import RegisterMapManager, RegisterMapManagerWrite
 from homeassistant.core import HomeAssistant # pyright: ignore[reportMissingImports, reportMissingModuleSource]
 
 _LOGGER = logging.getLogger(__name__)
@@ -34,7 +34,7 @@ class THZDevice:
         self.ser = None
         self._firmware_version: str | None = None
         self.register_map_manager: RegisterMapManager = None
-        self.write_register_map_manager: RegisterMapManager_Write = None
+        self.write_register_map_manager: RegisterMapManagerWrite = None
         self._cache = {}
         self._cache_duration = 60
 
@@ -64,7 +64,7 @@ class THZDevice:
 
         # Firmware-spezifische Register-Maps laden
         self.register_map_manager = RegisterMapManager(self._firmware_version)
-        self.write_register_map_manager = RegisterMapManager_Write(self._firmware_version)
+        self.write_register_map_manager = RegisterMapManagerWrite(self._firmware_version)
 
         self._cache = {}  # { block_name: (timestamp, payload) }
         self._cache_duration = 60  # seconds
