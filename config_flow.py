@@ -2,6 +2,7 @@ import logging
 import voluptuous as vol # pyright: ignore[reportMissingImports, reportMissingModuleSource]
 from homeassistant import config_entries # pyright: ignore[reportMissingImports, reportMissingModuleSource]
 from homeassistant.const import CONF_HOST, CONF_PORT, CONF_DEVICE # pyright: ignore[reportMissingImports, reportMissingModuleSource]
+from homeassistant.helpers import area_registry
 from homeassistant.data_entry_flow import FlowResult # pyright: ignore[reportMissingImports, reportMissingModuleSource]
 import serial.tools.list_ports # pyright: ignore[reportMissingModuleSource]
 
@@ -48,6 +49,11 @@ class THZConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self.connection_data["alias"] = user_input.get("alias", "").strip()
             self.connection_data["area"] = user_input.get("area", "").strip()
             return await self.async_step_log()
+        
+        # Get available areas
+        ar = area_registry.async_get(self.hass)
+        areas = {area.id: area.name for area in ar.async_list_areas()}
+        areas[""] = "-- No Area --"  # Add option for no area
 
         schema_dict = {}
         schema_dict[vol.Optional("alias", default=self.connection_data.get("alias", ""))] = str
@@ -124,6 +130,9 @@ class THZConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         defaults = defaults or {}
 
         ports = await self.get_ports()
+        ar = area_registry.async_get(self.hass)
+        areas = {area.id: area.name for area in ar.async_list_areas()}
+        areas[""] = "-- No Area --"
 
         return vol.Schema(
             {
@@ -139,11 +148,18 @@ class THZConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     "update_interval",
                     default=defaults.get("update_interval", DEFAULT_UPDATE_INTERVAL),
                 ): int,
-
+               vol.Optional(
+                   "alias",
+                    default=defaults.get("alias", ""),
+                ): str,
+                vol.Optional(
+                   "area",
+                    default=defaults.get("area", ""),
+               ): vol.In(areas),
                 vol.Required(
-                "log_level",
-                default=defaults.get("log_level", "info"),
-                ): vol.In(["debug", "info", "warning", "error"])
+                    "log_level",
+                    default=defaults.get("log_level", "info"),
+                    ): vol.In(["debug", "info", "warning", "error"])
             })
     
     async def get_ports(self) -> list[str]:
