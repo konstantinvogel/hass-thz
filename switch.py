@@ -66,5 +66,5 @@ class THZSwitch(SwitchEntity):
     async def turn_off(self, **kwargs):
         value_int = 0
         async with self._device.lock:
-            await self.hass.async_add_executor_job(self._device.write_value, (bytes.fromhex(self._command), value_int.to_bytes(2, byteorder='big', signed=False)))
+            await self.hass.async_add_executor_job(self._device.write_value, bytes.fromhex(self._command), value_int.to_bytes(2, byteorder='big', signed=False))
         self._is_on = False
