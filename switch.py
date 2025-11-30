@@ -1,21 +1,33 @@
+import asyncio
+import logging
+
 from homeassistant.components.switch import SwitchEntity # pyright: ignore[reportMissingImports, reportMissingModuleSource]
 from .register_maps.register_map_manager import RegisterMapManagerWrite
 from .thz_device import THZDevice
-import asyncio
-
-import logging
 
 _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
+    """
+    Set up switch entities for the THZ integration.
+    This coroutine retrieves all write registers from the write manager,
+    filters for switch-type registers, and creates THZSwitch entities for each one.
+    The created entities are then added to Home Assistant.
+    Args:
+        hass: The Home Assistant instance.
+        config_entry: The config entry that triggered this setup.
+        async_add_entities: Callback function to register new entities.
+    Returns:
+        None
+    """
     entities = []
     write_manager: RegisterMapManagerWrite = hass.data["thz"]["write_manager"]
     device: THZDevice = hass.data["thz"]["device"]
     write_registers = write_manager.get_all_registers()
-    _LOGGER.debug(f"write_registers: {write_registers}")
+    _LOGGER.debug("write_registers: %s", write_registers)
     for name, entry in write_registers.items():
         if entry["type"] == "switch":
-            _LOGGER.debug(f"Creating Switch for {name} with command {entry['command']}")
+            _LOGGER.debug("Creating Switch for %s with command %s", name, entry['command'])
             entity = THZSwitch(
                 name=name,
                 command=entry["command"],
@@ -106,7 +118,7 @@ class THZSwitch(SwitchEntity):
             Any exceptions raised by the underlying device communication methods.
         """
         # Read the value from the device and interpret as on/off
-        _LOGGER.debug(f"Updating switch {self._attr_name} with command {self._command}")
+        _LOGGER.debug("Updating switch %s with command %s", self._attr_name, self._command)
         async with self._device.lock:
             value_bytes = await self.hass.async_add_executor_job(self._device.read_value, bytes.fromhex(self._command), "get", 4, 2)
             await asyncio.sleep(0.01)  # Kurze Pause, um sicherzustellen, dass das Gerät bereit ist
