@@ -84,11 +84,11 @@ REGISTER_MAP = {
 		(" dhwBoosterStage: ", 28, 2, "hex", 1),
 		(" pasteurisationMode: ", 32, 2, "hex", 1),
 		(" dhwOpMode: ", 34, 2, "opmodehc", 1),
-		(" x36: ", 36, 4, "raw", 1)
+		# (" x36: ", 36, 4, "raw", 1)
 	],
 	"pxxF4": [
 		("outsideTemp: ", 4, 4, "hex2int", 10),
-		(" x08: ", 8, 4, "hex2int", 10),
+		# (" x08: ", 8, 4, "hex2int", 10),
 		(" returnTemp: ", 12, 4, "hex2int", 10),
 		(" integralHeat: ", 16, 4, "hex2int", 1),
 		(" flowTemp: ", 20, 4, "hex2int", 10),
@@ -100,22 +100,22 @@ REGISTER_MAP = {
 		(" hcOpMode: ", 48, 2, "opmodehc", 1),
 		# (" x52: ", 52, 4, "hex2int", 1),
 		(" roomSetTemp: ", 56, 4, "hex2int", 10),
-		(" x60: ", 60, 4, "hex2int", 10),
-		(" x64: ", 64, 4, "hex2int", 10),
+		# (" x60: ", 60, 4, "hex2int", 10),
+		# (" x64: ", 64, 4, "hex2int", 10),
 		(" insideTempRC: ", 68, 4, "hex2int", 10),
-		(" x72: ", 72, 4, "hex2int", 10),
-		(" x76: ", 76, 4, "hex2int", 10),
+		# (" x72: ", 72, 4, "hex2int", 10),
+		# (" x76: ", 76, 4, "hex2int", 10),
 		(" onHysteresisNo: ", 32, 2, "hex", 1),
 		(" offHysteresisNo: ", 34, 2, "hex", 1),
 		(" hcBoosterStage: ", 36, 2, "hex", 1)
 	],
 
 	"pxxFC" : [
-        ("Weekday: ",	5, 1, "weekday", 1),	
+        ("Weekday: ",	5, 1, "weekday", 1),
         (" Hour: ",	6, 2, "hex", 1),
-	      (" Min: ",	8, 2, "hex", 1),	
+	      (" Min: ",	8, 2, "hex", 1),
           (" Sec: ",	10, 2, "hex", 1),
-	      (" Date: ", 	12, 2, "year", 1),	
+	      (" Date: ", 	12, 2, "year", 1),
           ("/", 		14, 2, "hex", 1),
 	      ("/", 		16, 2, "hex", 1)
 		],
