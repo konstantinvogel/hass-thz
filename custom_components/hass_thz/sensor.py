@@ -12,8 +12,11 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
+    PERCENTAGE,
+    UnitOfPressure,
     UnitOfTemperature,
     UnitOfTime,
+    UnitOfVolumeFlowRate,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -25,7 +28,9 @@ from .coordinator import THZDataUpdateCoordinator
 _LOGGER = logging.getLogger(__name__)
 
 
+# =============================================================================
 # Temperature sensors from sGlobal (FB)
+# =============================================================================
 TEMPERATURE_SENSORS: tuple[SensorEntityDescription, ...] = (
     SensorEntityDescription(
         key="outsideTemp",
@@ -33,6 +38,15 @@ TEMPERATURE_SENSORS: tuple[SensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.TEMPERATURE,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:thermometer",
+    ),
+    SensorEntityDescription(
+        key="outsideTempFiltered",
+        name="Outside Temperature (Filtered)",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:thermometer",
     ),
     SensorEntityDescription(
         key="flowTemp",
@@ -40,6 +54,7 @@ TEMPERATURE_SENSORS: tuple[SensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.TEMPERATURE,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:thermometer-chevron-up",
     ),
     SensorEntityDescription(
         key="returnTemp",
@@ -47,6 +62,7 @@ TEMPERATURE_SENSORS: tuple[SensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.TEMPERATURE,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:thermometer-chevron-down",
     ),
     SensorEntityDescription(
         key="dhwTemp",
@@ -54,6 +70,7 @@ TEMPERATURE_SENSORS: tuple[SensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.TEMPERATURE,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:water-thermometer",
     ),
     SensorEntityDescription(
         key="hotGasTemp",
@@ -61,6 +78,7 @@ TEMPERATURE_SENSORS: tuple[SensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.TEMPERATURE,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:gas-burner",
     ),
     SensorEntityDescription(
         key="evaporatorTemp",
@@ -68,6 +86,7 @@ TEMPERATURE_SENSORS: tuple[SensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.TEMPERATURE,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:snowflake-thermometer",
     ),
     SensorEntityDescription(
         key="condenserTemp",
@@ -75,6 +94,7 @@ TEMPERATURE_SENSORS: tuple[SensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.TEMPERATURE,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:radiator",
     ),
     SensorEntityDescription(
         key="collectorTemp",
@@ -82,6 +102,7 @@ TEMPERATURE_SENSORS: tuple[SensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.TEMPERATURE,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:solar-panel",
     ),
     SensorEntityDescription(
         key="insideTemp",
@@ -89,6 +110,7 @@ TEMPERATURE_SENSORS: tuple[SensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.TEMPERATURE,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:home-thermometer",
     ),
     SensorEntityDescription(
         key="flowTempHC2",
@@ -96,10 +118,13 @@ TEMPERATURE_SENSORS: tuple[SensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.TEMPERATURE,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:thermometer-chevron-up",
     ),
 )
 
+# =============================================================================
 # Heating circuit sensors from sHC1 (F4)
+# =============================================================================
 HEATING_CIRCUIT_SENSORS: tuple[SensorEntityDescription, ...] = (
     SensorEntityDescription(
         key="flowTempSet",
@@ -123,6 +148,52 @@ HEATING_CIRCUIT_SENSORS: tuple[SensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.TEMPERATURE,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:home-thermometer",
+    ),
+    SensorEntityDescription(
+        key="heatSetTemp",
+        name="Heating Setpoint",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:thermometer-check",
+    ),
+    SensorEntityDescription(
+        key="heatTemp",
+        name="Heating Temperature",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:thermometer",
+    ),
+    SensorEntityDescription(
+        key="dhwSetTemp",
+        name="DHW Setpoint",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:water-thermometer",
+    ),
+    SensorEntityDescription(
+        key="heatingCurve",
+        name="Heating Curve",
+        icon="mdi:chart-line",
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    SensorEntityDescription(
+        key="heatingCurveOffset",
+        name="Heating Curve Offset",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:tune-vertical",
+    ),
+    SensorEntityDescription(
+        key="compBlockTime",
+        name="Compressor Block Time",
+        icon="mdi:timer-lock",
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        state_class=SensorStateClass.MEASUREMENT,
     ),
     SensorEntityDescription(
         key="onOffCycles",
@@ -132,46 +203,78 @@ HEATING_CIRCUIT_SENSORS: tuple[SensorEntityDescription, ...] = (
     ),
 )
 
+# =============================================================================
+# Mode sensors from sHC1 (F4) - Text values
+# =============================================================================
+MODE_SENSORS: tuple[SensorEntityDescription, ...] = (
+    SensorEntityDescription(
+        key="seasonModeText",
+        name="Season Mode",
+        icon="mdi:weather-sunny",
+    ),
+    SensorEntityDescription(
+        key="hcOpModeText",
+        name="Heating Operation Mode",
+        icon="mdi:thermostat",
+    ),
+)
+
+# =============================================================================
 # Operating hours from sHistory (09)
+# =============================================================================
 HOURS_SENSORS: tuple[SensorEntityDescription, ...] = (
     SensorEntityDescription(
         key="compressorHeatingHours",
         name="Compressor Heating Hours",
-        icon="mdi:timer",
+        icon="mdi:heat-pump",
         native_unit_of_measurement=UnitOfTime.HOURS,
         state_class=SensorStateClass.TOTAL_INCREASING,
     ),
     SensorEntityDescription(
         key="compressorCoolingHours",
         name="Compressor Cooling Hours",
-        icon="mdi:timer",
+        icon="mdi:snowflake",
         native_unit_of_measurement=UnitOfTime.HOURS,
         state_class=SensorStateClass.TOTAL_INCREASING,
     ),
     SensorEntityDescription(
         key="compressorDHWHours",
         name="Compressor DHW Hours",
-        icon="mdi:timer",
+        icon="mdi:water-boiler",
         native_unit_of_measurement=UnitOfTime.HOURS,
         state_class=SensorStateClass.TOTAL_INCREASING,
     ),
     SensorEntityDescription(
         key="boosterHeatingHours",
         name="Booster Heating Hours",
-        icon="mdi:timer-alert",
+        icon="mdi:heating-coil",
         native_unit_of_measurement=UnitOfTime.HOURS,
         state_class=SensorStateClass.TOTAL_INCREASING,
     ),
     SensorEntityDescription(
         key="boosterDHWHours",
         name="Booster DHW Hours",
-        icon="mdi:timer-alert",
+        icon="mdi:heating-coil",
         native_unit_of_measurement=UnitOfTime.HOURS,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+    ),
+    SensorEntityDescription(
+        key="compressorHeatingStarts",
+        name="Compressor Heating Starts",
+        icon="mdi:counter",
+        state_class=SensorStateClass.TOTAL_INCREASING,
+    ),
+    SensorEntityDescription(
+        key="compressorCoolingStarts",
+        name="Compressor Cooling Starts",
+        icon="mdi:counter",
         state_class=SensorStateClass.TOTAL_INCREASING,
     ),
 )
 
+# =============================================================================
 # Fan sensors from sGlobal (FB)
+# =============================================================================
 FAN_SENSORS: tuple[SensorEntityDescription, ...] = (
     SensorEntityDescription(
         key="inputVentilatorSpeed",
@@ -187,10 +290,62 @@ FAN_SENSORS: tuple[SensorEntityDescription, ...] = (
         native_unit_of_measurement="rpm",
         state_class=SensorStateClass.MEASUREMENT,
     ),
+    SensorEntityDescription(
+        key="inputVentilatorPower",
+        name="Input Fan Power",
+        icon="mdi:fan",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    SensorEntityDescription(
+        key="outputVentilatorPower",
+        name="Output Fan Power",
+        icon="mdi:fan",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
 )
 
-# Error sensors from sLast (D1)
-ERROR_SENSORS: tuple[SensorEntityDescription, ...] = (
+# =============================================================================
+# Pressure sensors from sGlobal (FB)
+# =============================================================================
+PRESSURE_SENSORS: tuple[SensorEntityDescription, ...] = (
+    SensorEntityDescription(
+        key="highPressureSensor",
+        name="High Pressure",
+        device_class=SensorDeviceClass.PRESSURE,
+        native_unit_of_measurement=UnitOfPressure.BAR,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:gauge-full",
+    ),
+    SensorEntityDescription(
+        key="lowPressureSensor",
+        name="Low Pressure",
+        device_class=SensorDeviceClass.PRESSURE,
+        native_unit_of_measurement=UnitOfPressure.BAR,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:gauge-low",
+    ),
+)
+
+# =============================================================================
+# Other sensors from sGlobal (FB)
+# =============================================================================
+OTHER_SENSORS: tuple[SensorEntityDescription, ...] = (
+    SensorEntityDescription(
+        key="flowRate",
+        name="Flow Rate",
+        icon="mdi:water-pump",
+        native_unit_of_measurement="L/min",
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    SensorEntityDescription(
+        key="relHumidity",
+        name="Relative Humidity",
+        device_class=SensorDeviceClass.HUMIDITY,
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
     SensorEntityDescription(
         key="numberOfFaults",
         name="Number of Faults",
@@ -203,9 +358,11 @@ ERROR_SENSORS: tuple[SensorEntityDescription, ...] = (
 ALL_SENSORS = (
     TEMPERATURE_SENSORS
     + HEATING_CIRCUIT_SENSORS
+    + MODE_SENSORS
     + HOURS_SENSORS
     + FAN_SENSORS
-    + ERROR_SENSORS
+    + PRESSURE_SENSORS
+    + OTHER_SENSORS
 )
 
 

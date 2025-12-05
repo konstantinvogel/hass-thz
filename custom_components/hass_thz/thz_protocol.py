@@ -205,22 +205,14 @@ def parse_sglobal(data_hex: str) -> dict[str, Any]:
     """
     Parse sGlobal (FB) register - main sensor data.
     
-    Structure (firmware 7.02):
-    - Pos 0-3: collectorTemp
-    - Pos 4-7: outsideTemp
-    - Pos 8-11: flowTemp
-    - Pos 12-15: returnTemp
-    - Pos 16-19: hotGasTemp
-    - Pos 20-23: dhwTemp
-    - Pos 24-27: flowTempHC2
-    - Pos 28-31: insideTemp
-    - Pos 32-35: evaporatorTemp
-    - Pos 36-39: condenserTemp
+    Based on FHEM 00_THZ.pm sGlobal parsing.
+    156 bytes = 78 hex pairs after command echo.
     """
     result = {}
     try:
-        d = data_hex[2:]  # Skip command echo
+        d = data_hex[2:]  # Skip command echo (FB)
         
+        # Temperatures (each 4 hex chars = 2 bytes, signed)
         if len(d) >= 4:
             result["collectorTemp"] = parse_temp(d[0:4])
         if len(d) >= 8:
@@ -244,14 +236,61 @@ def parse_sglobal(data_hex: str) -> dict[str, Any]:
         if len(d) >= 40:
             result["condenserTemp"] = parse_temp(d[36:40])
         
-        # Fan speeds (positions vary by firmware)
-        if len(d) >= 66:
+        # Additional temperatures
+        if len(d) >= 44:
+            result["mixerOpen"] = int(d[40:44], 16)  # Mixer position
+        if len(d) >= 48:
+            result["mixerClosed"] = int(d[44:48], 16)
+        if len(d) >= 52:
+            result["heatPipeValve"] = int(d[48:52], 16)
+        if len(d) >= 56:
+            result["diverterValve"] = int(d[52:56], 16)
+        
+        # DHW pump and heating circuit pump status (bytes 56-60)
+        if len(d) >= 60:
+            result["dhwPump"] = int(d[56:58], 16)
+            result["heatingCircuitPump"] = int(d[58:60], 16)
+        
+        # Compressor and booster status (bytes 60-68)
+        if len(d) >= 68:
+            result["compressor"] = int(d[60:62], 16)
+            result["boosterStage1"] = int(d[62:64], 16)
+            result["boosterStage2"] = int(d[64:66], 16)
+            result["boosterStage3"] = int(d[66:68], 16)
+        
+        # Fan speeds (bytes 58-66 in original, but position may vary)
+        if len(d) >= 76:
             try:
-                result["outputVentilatorSpeed"] = int(d[58:62], 16)
-                result["inputVentilatorSpeed"] = int(d[62:66], 16)
+                result["outputVentilatorSpeed"] = int(d[68:72], 16)
+                result["inputVentilatorSpeed"] = int(d[72:76], 16)
             except ValueError:
                 pass
-                
+        
+        # Fan power percentage
+        if len(d) >= 84:
+            try:
+                result["outputVentilatorPower"] = int(d[76:80], 16) / 10
+                result["inputVentilatorPower"] = int(d[80:84], 16) / 10
+            except ValueError:
+                pass
+        
+        # High/Low pressure sensors
+        if len(d) >= 92:
+            result["highPressureSensor"] = int(d[84:88], 16) / 100  # Bar
+            result["lowPressureSensor"] = int(d[88:92], 16) / 100   # Bar
+        
+        # Flow rate
+        if len(d) >= 96:
+            result["flowRate"] = int(d[92:96], 16) / 10  # L/min
+        
+        # Humidity
+        if len(d) >= 100:
+            result["relHumidity"] = int(d[96:100], 16) / 10  # %
+            
+        # Outside temp filtered (average)
+        if len(d) >= 104:
+            result["outsideTempFiltered"] = parse_temp(d[100:104])
+            
     except (ValueError, IndexError) as e:
         result["parse_error"] = str(e)
     
@@ -259,17 +298,60 @@ def parse_sglobal(data_hex: str) -> dict[str, Any]:
 
 
 def parse_shc1(data_hex: str) -> dict[str, Any]:
-    """Parse sHC1 (F4) register - heating circuit 1."""
+    """
+    Parse sHC1 (F4) register - heating circuit 1.
+    
+    82 bytes = 41 hex pairs after command echo.
+    Based on FHEM 00_THZ.pm sHC1 parsing.
+    """
     result = {}
     try:
-        d = data_hex[2:]  # Skip command echo
+        d = data_hex[2:]  # Skip command echo (F4)
         
+        # Temperatures and setpoints
         if len(d) >= 4:
             result["flowTempSet"] = int(d[0:4], 16) / 10
         if len(d) >= 8:
             result["roomTempSet"] = int(d[4:8], 16) / 10
         if len(d) >= 12:
             result["roomTemp"] = int(d[8:12], 16) / 10
+        if len(d) >= 16:
+            result["heatSetTemp"] = int(d[12:16], 16) / 10
+        if len(d) >= 20:
+            result["heatTemp"] = int(d[16:20], 16) / 10
+            
+        # Season mode (1=winter, 2=summer)
+        if len(d) >= 24:
+            season = int(d[20:24], 16)
+            result["seasonMode"] = season
+            result["seasonModeText"] = "winter" if season == 1 else "summer" if season == 2 else str(season)
+        
+        # Operation mode
+        if len(d) >= 28:
+            op_mode = int(d[24:28], 16)
+            result["hcOpMode"] = op_mode
+            modes = {1: "standby", 11: "automatic", 3: "DAYmode", 4: "setback", 5: "DHWmode", 14: "manual", 0: "emergency"}
+            result["hcOpModeText"] = modes.get(op_mode, str(op_mode))
+        
+        # Compressor block time
+        if len(d) >= 32:
+            result["compBlockTime"] = int(d[28:32], 16)
+        
+        # Heating curve parameters
+        if len(d) >= 40:
+            result["heatingCurve"] = int(d[32:36], 16) / 100
+            result["heatingCurveOffset"] = parse_temp(d[36:40])
+        
+        # DHW setpoint
+        if len(d) >= 44:
+            result["dhwSetTemp"] = int(d[40:44], 16) / 10
+            
+        # DHW operation mode
+        if len(d) >= 48:
+            dhw_mode = int(d[44:48], 16)
+            result["dhwOpMode"] = dhw_mode
+            
+        # On/off cycles at position 76-80 (38-40 bytes)
         if len(d) >= 80:
             result["onOffCycles"] = int(d[76:80], 16)
             
@@ -303,11 +385,16 @@ def parse_p01(data_hex: str) -> dict[str, Any]:
 
 
 def parse_history(data_hex: str) -> dict[str, Any]:
-    """Parse sHistory (09) register - operating hours."""
+    """
+    Parse sHistory (09) register - operating hours and statistics.
+    
+    30 bytes = 15 hex pairs after command echo.
+    """
     result = {}
     try:
-        d = data_hex[2:]  # Skip command echo
+        d = data_hex[2:]  # Skip command echo (09)
         
+        # Operating hours (each 4 hex = 2 bytes = hours)
         if len(d) >= 4:
             result["compressorHeatingHours"] = int(d[0:4], 16)
         if len(d) >= 8:
@@ -318,6 +405,12 @@ def parse_history(data_hex: str) -> dict[str, Any]:
             result["boosterDHWHours"] = int(d[12:16], 16)
         if len(d) >= 20:
             result["boosterHeatingHours"] = int(d[16:20], 16)
+            
+        # Additional statistics
+        if len(d) >= 24:
+            result["compressorHeatingStarts"] = int(d[20:24], 16)
+        if len(d) >= 28:
+            result["compressorCoolingStarts"] = int(d[24:28], 16)
             
     except (ValueError, IndexError) as e:
         result["parse_error"] = str(e)
