@@ -329,16 +329,15 @@ def parse_time(data_hex: str) -> dict[str, Any]:
     """
     Parse sTime (FC) register.
     
-    Structure (FCtime206 from FHEM):
+    Structure (based on actual device response FC04142417190C05):
     - Byte 0 (pos 0-1): Command echo (FC)
     - Byte 1 (pos 2-3): Weekday (1=Mon, 7=Sun)
-    - Byte 2-3 (pos 4-7): Hour (as hex, e.g., 14 = 0x0E but stored as 14)
-    - Byte 4-5 (pos 8-11): Minutes
-    - Byte 6-7 (pos 12-15): Seconds
-    - Byte 8-9 (pos 16-19): Year (2-digit, e.g., 25 for 2025)
-    - Byte 10-11 (pos 20-23): Padding/unknown
-    - Byte 12-13 (pos 24-27): Month
-    - Byte 14-15 (pos 28-31): Day
+    - Byte 2 (pos 4-5): Hour (0-23)
+    - Byte 3 (pos 6-7): Minute (0-59)
+    - Byte 4 (pos 8-9): Unknown/Second?
+    - Byte 5 (pos 10-11): Year (2-digit, e.g., 19 = 2025)
+    - Byte 6 (pos 12-13): Month (1-12)
+    - Byte 7 (pos 14-15): Day (1-31)
     """
     result = {}
     try:
@@ -346,20 +345,19 @@ def parse_time(data_hex: str) -> dict[str, Any]:
         
         if len(d) >= 2:
             result["weekday"] = int(d[0:2], 16)
+        if len(d) >= 4:
+            result["hour"] = int(d[2:4], 16)
         if len(d) >= 6:
-            result["hour"] = int(d[2:6], 16)  # 2 bytes
+            result["minute"] = int(d[4:6], 16)
+        if len(d) >= 8:
+            result["second"] = int(d[6:8], 16)  # Might be something else
         if len(d) >= 10:
-            result["minute"] = int(d[6:10], 16)  # 2 bytes
+            year_short = int(d[8:10], 16)
+            result["year"] = 2000 + year_short
+        if len(d) >= 12:
+            result["month"] = int(d[10:12], 16)
         if len(d) >= 14:
-            result["second"] = int(d[10:14], 16)  # 2 bytes
-        if len(d) >= 18:
-            year_short = int(d[14:18], 16)  # 2-digit year
-            result["year"] = 2000 + year_short if year_short < 100 else year_short
-        # Bytes 18-21 seem to be padding/unknown (skip)
-        if len(d) >= 26:
-            result["month"] = int(d[22:26], 16)
-        if len(d) >= 30:
-            result["day"] = int(d[26:30], 16)
+            result["day"] = int(d[12:14], 16)
             
     except (ValueError, IndexError) as e:
         result["parse_error"] = str(e)
