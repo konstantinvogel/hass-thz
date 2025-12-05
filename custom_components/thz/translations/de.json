@@ -1,0 +1,94 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "THZ Wärmepumpe Verbindung",
+        "description": "Konfiguriere die Verbindung zu deiner Tecalor THZ / Stiebel Eltron LWZ Wärmepumpe.",
+        "data": {
+          "serial_port": "Serieller Port",
+          "baudrate": "Baudrate",
+          "firmware": "Firmware Version",
+          "name": "Gerätename (optional)"
+        },
+        "data_description": {
+          "serial_port": "Der serielle Port an dem die Wärmepumpe angeschlossen ist (z.B. /dev/ttyUSB0 oder COM3)",
+          "baudrate": "Kommunikationsgeschwindigkeit (normalerweise 115200 für USB)",
+          "firmware": "Wähle die Firmware-Version deiner Wärmepumpe"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Verbindung zur Wärmepumpe fehlgeschlagen. Bitte überprüfe den seriellen Port und die Verbindung.",
+      "unknown": "Ein unerwarteter Fehler ist aufgetreten."
+    },
+    "abort": {
+      "already_configured": "Dieser serielle Port ist bereits konfiguriert."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "outside_temp": {"name": "Außentemperatur"},
+      "outside_temp_filtered": {"name": "Außentemperatur (gefiltert)"},
+      "flow_temp": {"name": "Vorlauftemperatur"},
+      "return_temp": {"name": "Rücklauftemperatur"},
+      "dhw_temp": {"name": "Warmwassertemperatur"},
+      "hot_gas_temp": {"name": "Heißgastemperatur"},
+      "evaporator_temp": {"name": "Verdampfertemperatur"},
+      "condenser_temp": {"name": "Kondensatortemperatur"},
+      "inside_temp": {"name": "Innentemperatur"},
+      "room_temp_day_setpoint": {"name": "Raum-Solltemperatur Tag"},
+      "dhw_temp_day_setpoint": {"name": "Warmwasser-Solltemperatur Tag"},
+      "room_set_temp": {"name": "Raum-Solltemperatur"},
+      "dhw_set_temp": {"name": "Warmwasser-Solltemperatur"},
+      "heat_set_temp": {"name": "Heizungs-Solltemperatur"},
+      "fan_stage_day": {"name": "Lüfterstufe Tag"},
+      "fan_stage_night": {"name": "Lüfterstufe Nacht"},
+      "fan_stage_standby": {"name": "Lüfterstufe Standby"},
+      "season_mode": {"name": "Jahreszeit-Modus"},
+      "hc_operation_mode": {"name": "Heizkreis Betriebsmodus"},
+      "dhw_operation_mode": {"name": "Warmwasser Betriebsmodus"},
+      "number_of_faults": {"name": "Anzahl Fehler"},
+      "last_fault": {"name": "Letzter Fehler"},
+      "electricity_heating_total": {"name": "Stromverbrauch Heizung Gesamt"},
+      "electricity_dhw_total": {"name": "Stromverbrauch Warmwasser Gesamt"},
+      "heat_output_heating_total": {"name": "Wärmeertrag Heizung Gesamt"},
+      "heat_output_dhw_total": {"name": "Wärmeertrag Warmwasser Gesamt"},
+      "booster_heating_total": {"name": "Heizstab Heizung Gesamt"},
+      "booster_dhw_total": {"name": "Heizstab Warmwasser Gesamt"},
+      "compressor_heating_hours": {"name": "Verdichter Heizung Stunden"},
+      "compressor_dhw_hours": {"name": "Verdichter Warmwasser Stunden"},
+      "booster_heating_hours": {"name": "Heizstab Heizung Stunden"},
+      "booster_dhw_hours": {"name": "Heizstab Warmwasser Stunden"},
+      "heating_hours": {"name": "Heizung Stunden"},
+      "dhw_hours": {"name": "Warmwasser Stunden"},
+      "input_fan_speed": {"name": "Zuluft Lüfterdrehzahl"},
+      "output_fan_speed": {"name": "Abluft Lüfterdrehzahl"},
+      "input_fan_power": {"name": "Zuluft Lüfterleistung"},
+      "output_fan_power": {"name": "Abluft Lüfterleistung"},
+      "humidity": {"name": "Relative Luftfeuchtigkeit"},
+      "flow_rate": {"name": "Durchflussrate"},
+      "compressor_block_time": {"name": "Verdichter Sperrzeit"}
+    },
+    "binary_sensor": {
+      "compressor": {"name": "Verdichter"},
+      "booster_stage1": {"name": "Heizstab Stufe 1"},
+      "booster_stage2": {"name": "Heizstab Stufe 2"},
+      "booster_stage3": {"name": "Heizstab Stufe 3"},
+      "heating_circuit_pump": {"name": "Heizkreispumpe"},
+      "dhw_pump": {"name": "Warmwasserpumpe"},
+      "solar_pump": {"name": "Solarpumpe"},
+      "mixer_open": {"name": "Mischer Auf"},
+      "mixer_closed": {"name": "Mischer Zu"},
+      "heat_pipe_valve": {"name": "Wärmerohventil"},
+      "diverter_valve": {"name": "Umschaltventil"},
+      "high_pressure_sensor": {"name": "Hochdruck OK"},
+      "low_pressure_sensor": {"name": "Niederdruck OK"},
+      "evu_release": {"name": "EVU Freigabe"},
+      "evaporator_ice_monitor": {"name": "Verdampfer Eisüberwachung"},
+      "signal_anode": {"name": "Anodensignal"},
+      "stb": {"name": "Sicherheitstemperaturbegrenzer"},
+      "oven_fireplace": {"name": "Ofen/Kamin Aktiv"},
+      "pasteurisation_mode": {"name": "Pasteurisierungsmodus"}
+    }
+  }
+}

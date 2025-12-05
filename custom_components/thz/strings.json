@@ -1,0 +1,127 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "THZ Heat Pump Connection",
+        "description": "Configure the connection to your Tecalor THZ / Stiebel Eltron LWZ heat pump.",
+        "data": {
+          "serial_port": "Serial Port",
+          "baudrate": "Baud Rate",
+          "firmware": "Firmware Version",
+          "name": "Device Name (optional)"
+        },
+        "data_description": {
+          "serial_port": "The serial port your heat pump is connected to (e.g., /dev/ttyUSB0 or COM3)",
+          "baudrate": "Communication speed (usually 115200 for USB connection)",
+          "firmware": "Select your heat pump firmware version"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the heat pump. Please check the serial port and connection.",
+      "unknown": "An unexpected error occurred."
+    },
+    "abort": {
+      "already_configured": "This serial port is already configured."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "outside_temp": {
+        "name": "Outside Temperature"
+      },
+      "flow_temp": {
+        "name": "Flow Temperature"
+      },
+      "return_temp": {
+        "name": "Return Temperature"
+      },
+      "dhw_temp": {
+        "name": "Hot Water Temperature"
+      },
+      "hot_gas_temp": {
+        "name": "Hot Gas Temperature"
+      },
+      "evaporator_temp": {
+        "name": "Evaporator Temperature"
+      },
+      "condenser_temp": {
+        "name": "Condenser Temperature"
+      },
+      "inside_temp": {
+        "name": "Inside Temperature"
+      },
+      "flow_temp_hc2": {
+        "name": "Flow Temperature HC2"
+      },
+      "collector_temp": {
+        "name": "Collector Temperature"
+      },
+      "outside_temp_filtered": {
+        "name": "Outside Temperature (Filtered)"
+      },
+      "operation_mode": {
+        "name": "Operation Mode"
+      },
+      "season_mode": {
+        "name": "Season Mode"
+      },
+      "input_fan_speed": {
+        "name": "Input Fan Speed"
+      },
+      "output_fan_speed": {
+        "name": "Output Fan Speed"
+      },
+      "input_fan_power": {
+        "name": "Input Fan Power"
+      },
+      "output_fan_power": {
+        "name": "Output Fan Power"
+      }
+    },
+    "binary_sensor": {
+      "compressor": {
+        "name": "Compressor"
+      },
+      "heating_circuit_pump": {
+        "name": "Heating Circuit Pump"
+      },
+      "dhw_pump": {
+        "name": "Hot Water Pump"
+      },
+      "solar_pump": {
+        "name": "Solar Pump"
+      },
+      "mixer_open": {
+        "name": "Mixer Open"
+      },
+      "mixer_closed": {
+        "name": "Mixer Closed"
+      },
+      "heat_pipe_valve": {
+        "name": "Heat Pipe Valve"
+      },
+      "diverter_valve": {
+        "name": "Diverter Valve"
+      },
+      "booster_stage1": {
+        "name": "Booster Stage 1"
+      },
+      "booster_stage2": {
+        "name": "Booster Stage 2"
+      },
+      "booster_stage3": {
+        "name": "Booster Stage 3"
+      },
+      "evu_release": {
+        "name": "EVU Release"
+      },
+      "high_pressure_sensor": {
+        "name": "High Pressure OK"
+      },
+      "low_pressure_sensor": {
+        "name": "Low Pressure OK"
+      }
+    }
+  }
+}

@@ -1,60 +1,85 @@
-# Stiebel Eltron LWZ / Tecalor THZ Integration for Home Assistant
+# THZ Heat Pump Integration for Home Assistant
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 
-A custom Home Assistant integration to connect Stiebel Eltron LWZ or Tecalor THZ heat pumps.
+Home Assistant custom component for **Tecalor THZ** and **Stiebel Eltron LWZ** heat pumps.
+
+Based on the excellent work from the [FHEM THZ module](https://wiki.fhem.de/wiki/Tecalor_THZ).
+
+## Supported Devices
+
+- Tecalor THZ 303/304/403/404/504 (SOL/ECO variants)
+- Tecalor THZ 5.5 eco
+- Stiebel Eltron LWZ 303/304/403/404/504
 
 ## Features
 
-- USB or TCP/IP (ser2net) connection support
-- Sensor readings (temperatures, pressures, states)
-- Writable settings (temperatures, operating modes)
-- Multiple firmware versions supported
-
-## Confirmed Working Devices
-
-| Model | Firmware |
-|-------|----------|
-| LWZ5  | 7.59     |
+- **Read-Only** - No write operations to ensure safety
+- Automatic firmware detection
+- Temperature sensors (outside, flow, return, DHW, etc.)
+- Fan stage settings
+- Energy consumption (kWh)
+- Operating hours (compressor, booster/Heizstab)
+- Error/fault monitoring
+- Pump and valve status
 
 ## Installation
 
 ### HACS (Recommended)
 
 1. Open HACS in Home Assistant
-2. Click on "Integrations"
-3. Click the three dots in the top right corner
-4. Select "Custom repositories"
-5. Add `https://github.com/konstantinvogel/hass-thz` with category "Integration"
-6. Click "Add"
-7. Search for "Stiebel Eltron" and install
+2. Click the three dots menu → "Custom repositories"
+3. Add `https://github.com/konstantinvogel/hass-thz` as Integration
+4. Search for "THZ Heat Pump" and install
+5. Restart Home Assistant
+6. Go to Settings → Devices & Services → Add Integration → "THZ Heat Pump"
 
 ### Manual Installation
 
-1. Copy the `custom_components/thz` folder to your Home Assistant `config/custom_components/` directory
+1. Copy `custom_components/thz` folder to your Home Assistant's `custom_components` directory
 2. Restart Home Assistant
+3. Add the integration via Settings → Devices & Services
 
 ## Configuration
 
-1. Go to **Settings** → **Devices & Services**
-2. Click **+ Add Integration**
-3. Search for "Stiebel Eltron LWZ / Tecalor THZ"
-4. Follow the setup wizard
+During setup you'll need:
+- **Serial Port**: USB port where your heat pump is connected (e.g., `/dev/ttyUSB0` or `COM3`)
+- **Baud Rate**: Usually `115200` for USB connections
 
-### Connection Types
+## Sensors
 
-- **USB**: Direct serial connection (e.g., `/dev/ttyUSB0`)
-- **TCP/IP**: Network connection via ser2net (e.g., `192.168.1.100:5555`)
+### Priority Sensors (your most important values)
+| Sensor | Description |
+|--------|-------------|
+| THZ Outside Temperature | Current outside temperature |
+| THZ Fan Stage Day | Fan stage for day mode |
+| THZ Room Temp Day Setpoint | Target room temperature |
+| THZ DHW Temp Day Setpoint | Target hot water temperature |
+| THZ Electricity Heating Total | Total electricity consumption for heating (kWh) |
+| THZ Booster Heating Total | Heizstab energy consumption (kWh) |
+| THZ Compressor Heating Hours | Compressor operating hours |
+| THZ Booster Heating Hours | Heizstab operating hours |
+| THZ Last Fault | Last error code |
+
+### All Available Sensors
+- Temperatures: Outside, Flow, Return, DHW, Evaporator, Condenser, Inside
+- Setpoints: Room temp, DHW temp, Heat temp
+- Fan stages: Day, Night, Standby
+- Energy: Electricity HC, Electricity DHW, Heat output, Booster consumption
+- Hours: Compressor hours, Booster hours
+- Status: Season mode, Operation mode, Faults
+
+## Safety
+
+⚠️ **This integration is READ-ONLY by design.**
+
+No commands are sent to modify heat pump settings. This ensures your heat pump configuration cannot be accidentally changed.
 
 ## Credits
 
-Based on the [FHEM THZ module](https://wiki.fhem.de/wiki/THZ) by Immi.
-
-## Disclaimer
-
-⚠️ **Use at your own risk.** This integration modifies heat pump settings. Incorrect settings may cause damage or unsafe operation. The authors are not responsible for any damage.
+- FHEM THZ module by immi and Robert Penz
+- Protocol documentation from the FHEM community
 
 ## License
 
-See [LICENSE](LICENSE) file.
-
+GPL-3.0

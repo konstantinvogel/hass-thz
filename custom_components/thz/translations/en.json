@@ -1,0 +1,94 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "THZ Heat Pump Connection",
+        "description": "Configure the connection to your Tecalor THZ / Stiebel Eltron LWZ heat pump.",
+        "data": {
+          "serial_port": "Serial Port",
+          "baudrate": "Baud Rate",
+          "firmware": "Firmware Version",
+          "name": "Device Name (optional)"
+        },
+        "data_description": {
+          "serial_port": "The serial port your heat pump is connected to (e.g., /dev/ttyUSB0 or COM3)",
+          "baudrate": "Communication speed (usually 115200 for USB connection)",
+          "firmware": "Select your heat pump firmware version"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the heat pump. Please check the serial port and connection.",
+      "unknown": "An unexpected error occurred."
+    },
+    "abort": {
+      "already_configured": "This serial port is already configured."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "outside_temp": {"name": "Outside Temperature"},
+      "outside_temp_filtered": {"name": "Outside Temperature (Filtered)"},
+      "flow_temp": {"name": "Flow Temperature"},
+      "return_temp": {"name": "Return Temperature"},
+      "dhw_temp": {"name": "Hot Water Temperature"},
+      "hot_gas_temp": {"name": "Hot Gas Temperature"},
+      "evaporator_temp": {"name": "Evaporator Temperature"},
+      "condenser_temp": {"name": "Condenser Temperature"},
+      "inside_temp": {"name": "Inside Temperature"},
+      "room_temp_day_setpoint": {"name": "Room Temp Day Setpoint"},
+      "dhw_temp_day_setpoint": {"name": "DHW Temp Day Setpoint"},
+      "room_set_temp": {"name": "Room Set Temperature"},
+      "dhw_set_temp": {"name": "DHW Set Temperature"},
+      "heat_set_temp": {"name": "Heat Set Temperature"},
+      "fan_stage_day": {"name": "Fan Stage Day"},
+      "fan_stage_night": {"name": "Fan Stage Night"},
+      "fan_stage_standby": {"name": "Fan Stage Standby"},
+      "season_mode": {"name": "Season Mode"},
+      "hc_operation_mode": {"name": "HC Operation Mode"},
+      "dhw_operation_mode": {"name": "DHW Operation Mode"},
+      "number_of_faults": {"name": "Number of Faults"},
+      "last_fault": {"name": "Last Fault"},
+      "electricity_heating_total": {"name": "Electricity Heating Total"},
+      "electricity_dhw_total": {"name": "Electricity DHW Total"},
+      "heat_output_heating_total": {"name": "Heat Output Heating Total"},
+      "heat_output_dhw_total": {"name": "Heat Output DHW Total"},
+      "booster_heating_total": {"name": "Booster Heating Total"},
+      "booster_dhw_total": {"name": "Booster DHW Total"},
+      "compressor_heating_hours": {"name": "Compressor Heating Hours"},
+      "compressor_dhw_hours": {"name": "Compressor DHW Hours"},
+      "booster_heating_hours": {"name": "Booster Heating Hours"},
+      "booster_dhw_hours": {"name": "Booster DHW Hours"},
+      "heating_hours": {"name": "Heating Hours"},
+      "dhw_hours": {"name": "DHW Hours"},
+      "input_fan_speed": {"name": "Input Fan Speed"},
+      "output_fan_speed": {"name": "Output Fan Speed"},
+      "input_fan_power": {"name": "Input Fan Power"},
+      "output_fan_power": {"name": "Output Fan Power"},
+      "humidity": {"name": "Relative Humidity"},
+      "flow_rate": {"name": "Flow Rate"},
+      "compressor_block_time": {"name": "Compressor Block Time"}
+    },
+    "binary_sensor": {
+      "compressor": {"name": "Compressor"},
+      "booster_stage1": {"name": "Booster Stage 1"},
+      "booster_stage2": {"name": "Booster Stage 2"},
+      "booster_stage3": {"name": "Booster Stage 3"},
+      "heating_circuit_pump": {"name": "Heating Circuit Pump"},
+      "dhw_pump": {"name": "DHW Pump"},
+      "solar_pump": {"name": "Solar Pump"},
+      "mixer_open": {"name": "Mixer Open"},
+      "mixer_closed": {"name": "Mixer Closed"},
+      "heat_pipe_valve": {"name": "Heat Pipe Valve"},
+      "diverter_valve": {"name": "Diverter Valve"},
+      "high_pressure_sensor": {"name": "High Pressure OK"},
+      "low_pressure_sensor": {"name": "Low Pressure OK"},
+      "evu_release": {"name": "EVU Release"},
+      "evaporator_ice_monitor": {"name": "Evaporator Ice Monitor"},
+      "signal_anode": {"name": "Anode Signal"},
+      "stb": {"name": "Safety Temperature Limiter"},
+      "oven_fireplace": {"name": "Oven/Fireplace Active"},
+      "pasteurisation_mode": {"name": "Pasteurisation Mode"}
+    }
+  }
+}
