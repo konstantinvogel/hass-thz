@@ -34,7 +34,7 @@ class THZResponse:
 REGISTERS = {
     "FD": {"name": "Firmware", "parse": "firmware"},
     "FB": {"name": "sGlobal (Temperaturen)", "parse": "sglobal"},
-    "F3": {"name": "sDHW (Warmwasser)", "parse": "raw"},
+    "F3": {"name": "sDHW (Warmwasser)", "parse": "dhw"},
     "F4": {"name": "sHC1 (Heizkreis 1)", "parse": "shc1"},
     "FC": {"name": "sTime (Zeit)", "parse": "time"},
     "17": {"name": "p01-p12 (Sollwerte) - alt", "parse": "p01"},
@@ -205,16 +205,39 @@ def parse_sglobal(data_hex: str) -> dict[str, Any]:
     """
     Parse sGlobal (FB) register - main sensor data.
     
-    Based on FHEM 00_THZ.pm sGlobal parsing.
-    156 bytes = 78 hex pairs after command echo.
+    Based on FHEM 00_THZ.pm FBglob206 parsing for firmware 2.06/7.02.
+    Positions are hex char positions after FB prefix (each value = 4 hex chars = 2 bytes).
+    
+    Verified with real device data (Firmware 7.02):
+    === TEMPERATURES (4 hex chars each, signed word / 10) ===
+    - 0-3: collectorTemp (-60.0 = not connected)
+    - 4-7: outsideTemp (4.2°C)
+    - 8-11: flowTemp (27.9°C)
+    - 12-15: returnTemp (27.8°C)
+    - 16-19: hotGasTemp (55.9°C)
+    - 20-23: dhwTemp (44.9°C)
+    - 24-27: flowTempHC2 (0x8001 = -3276.7 = not installed)
+    - 28-31: insideTemp (0xFDA8 = -60.0 = no sensor)
+    - 32-35: evaporatorTemp (1.2°C)
+    - 36-39: condenserTemp (29.6°C)
+    
+    === STATUS BYTES (1 byte each, starting at pos 40) ===
+    - 40-41: status byte 0
+    - 42-43: status byte 1 (pumps/valves)
+    - 44-45: status byte 2 (compressor/boosters)
+    - 46-47: status byte 3
+    
+    === VENTILATOR DATA (starting around pos 72) ===
     """
     result = {}
     try:
         d = data_hex[2:]  # Skip command echo (FB)
         
-        # Temperatures (each 4 hex chars = 2 bytes, signed)
+        # Temperatures (each 4 hex chars = 2 bytes, signed, /10 for °C)
         if len(d) >= 4:
-            result["collectorTemp"] = parse_temp(d[0:4])
+            temp = parse_temp(d[0:4])
+            if temp > -100:  # Valid sensor
+                result["collectorTemp"] = temp
         if len(d) >= 8:
             result["outsideTemp"] = parse_temp(d[4:8])
         if len(d) >= 12:
@@ -226,70 +249,48 @@ def parse_sglobal(data_hex: str) -> dict[str, Any]:
         if len(d) >= 24:
             result["dhwTemp"] = parse_temp(d[20:24])
         if len(d) >= 28:
-            result["flowTempHC2"] = parse_temp(d[24:28])
+            temp = parse_temp(d[24:28])
+            if temp > -1000:  # 0x8001 = -32767 = not installed
+                result["flowTempHC2"] = temp
         if len(d) >= 32:
             inside = parse_temp(d[28:32])
-            result["insideTemp"] = inside
-            result["insideTempValid"] = -50 <= inside <= 50
+            if inside > -60:  # 0xFDA8 = -60.0 = no sensor
+                result["insideTemp"] = inside
         if len(d) >= 36:
             result["evaporatorTemp"] = parse_temp(d[32:36])
         if len(d) >= 40:
             result["condenserTemp"] = parse_temp(d[36:40])
         
-        # Additional temperatures
-        if len(d) >= 44:
-            result["mixerOpen"] = int(d[40:44], 16)  # Mixer position
+        # Status bytes at position 40-47 (single bytes)
+        # Real data shows: pos 40=0x10, 42=0x08, 44=0x17, 46=0x00
         if len(d) >= 48:
-            result["mixerClosed"] = int(d[44:48], 16)
-        if len(d) >= 52:
-            result["heatPipeValve"] = int(d[48:52], 16)
-        if len(d) >= 56:
-            result["diverterValve"] = int(d[52:56], 16)
-        
-        # DHW pump and heating circuit pump status (bytes 56-60)
-        if len(d) >= 60:
-            result["dhwPump"] = int(d[56:58], 16)
-            result["heatingCircuitPump"] = int(d[58:60], 16)
-        
-        # Compressor and booster status (bytes 60-68)
-        if len(d) >= 68:
-            result["compressor"] = int(d[60:62], 16)
-            result["boosterStage1"] = int(d[62:64], 16)
-            result["boosterStage2"] = int(d[64:66], 16)
-            result["boosterStage3"] = int(d[66:68], 16)
-        
-        # Fan speeds (bytes 58-66 in original, but position may vary)
-        if len(d) >= 76:
-            try:
-                result["outputVentilatorSpeed"] = int(d[68:72], 16)
-                result["inputVentilatorSpeed"] = int(d[72:76], 16)
-            except ValueError:
-                pass
-        
-        # Fan power percentage
-        if len(d) >= 84:
-            try:
-                result["outputVentilatorPower"] = int(d[76:80], 16) / 10
-                result["inputVentilatorPower"] = int(d[80:84], 16) / 10
-            except ValueError:
-                pass
-        
-        # High/Low pressure sensors
-        if len(d) >= 92:
-            result["highPressureSensor"] = int(d[84:88], 16) / 100  # Bar
-            result["lowPressureSensor"] = int(d[88:92], 16) / 100   # Bar
-        
-        # Flow rate
-        if len(d) >= 96:
-            result["flowRate"] = int(d[92:96], 16) / 10  # L/min
-        
-        # Humidity
-        if len(d) >= 100:
-            result["relHumidity"] = int(d[96:100], 16) / 10  # %
+            byte40 = int(d[40:42], 16)
+            byte42 = int(d[42:44], 16)
+            byte44 = int(d[44:46], 16)
+            byte46 = int(d[46:48], 16)
             
-        # Outside temp filtered (average)
-        if len(d) >= 104:
-            result["outsideTempFiltered"] = parse_temp(d[100:104])
+            # Based on FHEM documentation and real data analysis:
+            # byte44 (0x17 = 0b00010111): compressor and boosters
+            result["compressor"] = (byte44 & 0x01) != 0
+            result["boosterStage1"] = (byte44 & 0x02) != 0
+            result["boosterStage2"] = (byte44 & 0x04) != 0
+            result["boosterStage3"] = (byte44 & 0x08) != 0
+            
+            # byte42 (0x08 = 0b00001000): pumps and valves
+            result["heatingCircuitPump"] = (byte42 & 0x01) != 0
+            result["dhwPump"] = (byte42 & 0x02) != 0
+            result["diverterValve"] = (byte42 & 0x04) != 0
+            result["heatPipeValve"] = (byte42 & 0x08) != 0
+            
+            # byte40: mixer status
+            result["mixerClosed"] = (byte40 & 0x01) != 0
+            result["mixerOpen"] = (byte40 & 0x02) != 0
+        
+        # Ventilator data - check FHEM for exact positions
+        # From real data: pos 72-73 = 0x39 (57), pos 82-83 = 0x03, pos 84-85 = 0x2A (42)
+        # These seem to be ventilator speeds/power
+        if len(d) >= 74:
+            result["mainVentilatorPower"] = int(d[72:74], 16)
             
     except (ValueError, IndexError) as e:
         result["parse_error"] = str(e)
@@ -301,59 +302,126 @@ def parse_shc1(data_hex: str) -> dict[str, Any]:
     """
     Parse sHC1 (F4) register - heating circuit 1.
     
-    82 bytes = 41 hex pairs after command echo.
-    Based on FHEM 00_THZ.pm sHC1 parsing.
+    Based on FHEM 00_THZ.pm F4hc1 parsing.
+    Positions are in hex chars (0-based) after F4 prefix.
+    
+    Verified with real device data (Firmware 7.02):
+    - 0-3: outsideTemp (4.2°C)
+    - 8-11: returnTemp (28.0°C)
+    - 16-19: flowTemp (28.2°C)
+    - 24-27: heatSetTemp (28.0°C)
+    - 28-31: heatTemp (0.0°C)
+    - 32-33: onHysteresisNo (2)
+    - 34-35: offHysteresisNo (1)
+    - 52-55: roomSetTemp (20.5°C) - 0x00CD = 205 / 10
+    - 64-67: insideTempRC (20.5°C) - 0x00CD = 205 / 10
+    - 76-79: onOffCycles (23)
     """
     result = {}
     try:
         d = data_hex[2:]  # Skip command echo (F4)
         
-        # Temperatures and setpoints
+        # outsideTemp at position 0-3
         if len(d) >= 4:
-            result["flowTempSet"] = int(d[0:4], 16) / 10
-        if len(d) >= 8:
-            result["roomTempSet"] = int(d[4:8], 16) / 10
+            result["hc1OutsideTemp"] = parse_temp(d[0:4])
+            
+        # returnTemp at position 8-11
         if len(d) >= 12:
-            result["roomTemp"] = int(d[8:12], 16) / 10
-        if len(d) >= 16:
-            result["heatSetTemp"] = int(d[12:16], 16) / 10
+            result["hc1ReturnTemp"] = parse_temp(d[8:12])
+        
+        # flowTemp at position 16-19
         if len(d) >= 20:
-            result["heatTemp"] = int(d[16:20], 16) / 10
+            result["hc1FlowTemp"] = parse_temp(d[16:20])
             
-        # Season mode (1=winter, 2=summer)
-        if len(d) >= 24:
-            season = int(d[20:24], 16)
-            result["seasonMode"] = season
-            result["seasonModeText"] = "winter" if season == 1 else "summer" if season == 2 else str(season)
-        
-        # Operation mode
+        # heatSetTemp at position 24-27
         if len(d) >= 28:
-            op_mode = int(d[24:28], 16)
-            result["hcOpMode"] = op_mode
-            modes = {1: "standby", 11: "automatic", 3: "DAYmode", 4: "setback", 5: "DHWmode", 14: "manual", 0: "emergency"}
-            result["hcOpModeText"] = modes.get(op_mode, str(op_mode))
-        
-        # Compressor block time
+            result["heatSetTemp"] = parse_temp(d[24:28])
+            
+        # heatTemp at position 28-31
         if len(d) >= 32:
-            result["compBlockTime"] = int(d[28:32], 16)
+            result["heatTemp"] = parse_temp(d[28:32])
         
-        # Heating curve parameters
-        if len(d) >= 40:
-            result["heatingCurve"] = int(d[32:36], 16) / 100
-            result["heatingCurveOffset"] = parse_temp(d[36:40])
+        # Hysteresis numbers at 32-33, 34-35
+        if len(d) >= 36:
+            result["onHysteresisNo"] = int(d[32:34], 16)
+            result["offHysteresisNo"] = int(d[34:36], 16)
         
-        # DHW setpoint
-        if len(d) >= 44:
-            result["dhwSetTemp"] = int(d[40:44], 16) / 10
+        # roomSetTemp at position 52-55 (0x00CD = 205 / 10 = 20.5°C)
+        if len(d) >= 56:
+            result["roomSetTemp"] = parse_temp(d[52:56])
             
-        # DHW operation mode
-        if len(d) >= 48:
-            dhw_mode = int(d[44:48], 16)
-            result["dhwOpMode"] = dhw_mode
+        # insideTempRC at position 64-67 (0x00CD = 205 / 10 = 20.5°C)
+        if len(d) >= 68:
+            result["insideTempRC"] = parse_temp(d[64:68])
             
-        # On/off cycles at position 76-80 (38-40 bytes)
+        # On/off cycles at position 76-79
         if len(d) >= 80:
             result["onOffCycles"] = int(d[76:80], 16)
+            
+    except (ValueError, IndexError) as e:
+        result["parse_error"] = str(e)
+    
+    return result
+
+
+def parse_dhw(data_hex: str) -> dict[str, Any]:
+    """
+    Parse sDHW (F3) register - domestic hot water.
+    
+    Real data structure (verified against FW 7.02):
+    Positions are hex char positions AFTER skipping F3 prefix.
+    Each temperature value is 2 bytes = 4 hex chars.
+    
+    Structure:
+    - 0-3: dhwTemp (signed/10) - current DHW temperature
+    - 4-7: outsideTemp (signed/10) - outside temperature  
+    - 8-11: dhwSetTemp (signed/10) - target DHW temperature
+    - 12-15: compBlockTime (signed int)
+    - 16-19: unknown
+    - 20-23: heatBlockTime related
+    - 24-25: dhwBoosterStage
+    - 28-29: pasteurisationMode
+    - 30-31: dhwOpMode (1=normal, 2=setback, 3=standby)
+    """
+    result = {}
+    try:
+        d = data_hex[2:]  # Skip command echo (F3)
+        
+        # dhwTemp at position 0-3 (current DHW temperature)
+        if len(d) >= 4:
+            result["dhwTemp"] = parse_temp(d[0:4])
+            
+        # outsideTemp at position 4-7
+        if len(d) >= 8:
+            result["dhwOutsideTemp"] = parse_temp(d[4:8])
+            
+        # dhwSetTemp at position 8-11 (target temperature)
+        if len(d) >= 12:
+            result["dhwSetTemp"] = parse_temp(d[8:12])
+            
+        # compBlockTime at position 12-15 (compressor block time in minutes)
+        if len(d) >= 16:
+            val = int(d[12:16], 16)
+            if val > 32767:
+                val = val - 65536
+            result["dhwCompBlockTime"] = val
+            
+        # dhwBoosterStage at position 24-25
+        if len(d) >= 26:
+            result["dhwBoosterStage"] = int(d[24:26], 16)
+            
+        # pasteurisationMode at position 28-29
+        if len(d) >= 30:
+            mode_byte = int(d[28:30], 16)
+            result["pasteurisationMode"] = mode_byte
+            result["pasteurisationActive"] = mode_byte == 1
+            
+        # dhwOpMode at position 30-31
+        if len(d) >= 32:
+            op_mode = int(d[30:32], 16)
+            result["dhwOpMode"] = op_mode
+            modes = {1: "normal", 2: "setback", 3: "standby", 4: "restart", 5: "restart"}
+            result["dhwOpModeText"] = modes.get(op_mode, str(op_mode))
             
     except (ValueError, IndexError) as e:
         result["parse_error"] = str(e)
@@ -478,6 +546,7 @@ PARSERS = {
     "firmware": parse_firmware,
     "sglobal": parse_sglobal,
     "shc1": parse_shc1,
+    "dhw": parse_dhw,
     "p01": parse_p01,
     "history": parse_history,
     "time": parse_time,

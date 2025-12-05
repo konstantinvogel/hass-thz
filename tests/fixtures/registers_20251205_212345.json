@@ -1,0 +1,101 @@
+{
+  "metadata": {
+    "timestamp": "2025-12-05T21:23:45.715888",
+    "port": "/dev/ttyUSB1",
+    "baudrate": 115200,
+    "firmware": "7.02"
+  },
+  "raw": {
+    "FD": "FD02BE",
+    "FB": "FBFDA8002A01170116022F01C18001FDA8000C0128100817000000000000000000000000003900000000032A070B00000000000000000000007E000000000116013A0095008A011A00000000097D",
+    "F3": "F301C1002901E000001008202D02010001759E17",
+    "F4": "F4002A000001180000011A011A011800000201100800640100000000CD01B5000000CD020000000017",
+    "FC": "FC04151728190C05",
+    "17": null,
+    "0A17": null,
+    "09": "090F7C0000023000000030000007A3",
+    "D1": "D10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "parsed": {
+    "FD": {
+      "version": "7.02",
+      "version_raw": 702
+    },
+    "FB": {
+      "collectorTemp": -60.0,
+      "outsideTemp": 4.2,
+      "flowTemp": 27.9,
+      "returnTemp": 27.8,
+      "hotGasTemp": 55.9,
+      "dhwTemp": 44.9,
+      "flowTempHC2": -3276.7,
+      "insideTemp": -60.0,
+      "insideTempValid": false,
+      "evaporatorTemp": 1.2,
+      "condenserTemp": 29.6,
+      "mixerOpen": 4104,
+      "mixerClosed": 5888,
+      "heatPipeValve": 0,
+      "diverterValve": 0,
+      "dhwPump": 0,
+      "heatingCircuitPump": 0,
+      "compressor": 0,
+      "boosterStage1": 0,
+      "boosterStage2": 0,
+      "boosterStage3": 0,
+      "outputVentilatorSpeed": 0,
+      "inputVentilatorSpeed": 14592,
+      "outputVentilatorPower": 0.0,
+      "inputVentilatorPower": 0.3,
+      "highPressureSensor": 107.59,
+      "lowPressureSensor": 28.16,
+      "flowRate": 0.0,
+      "relHumidity": 0.0,
+      "outsideTempFiltered": 0.0
+    },
+    "F4": {
+      "flowTempSet": 4.2,
+      "roomTempSet": 0.0,
+      "roomTemp": 28.0,
+      "heatSetTemp": 0.0,
+      "heatTemp": 28.2,
+      "seasonMode": 282,
+      "seasonModeText": "282",
+      "hcOpMode": 280,
+      "hcOpModeText": "280",
+      "compBlockTime": 0,
+      "heatingCurve": 5.13,
+      "heatingCurveOffset": 410.4,
+      "dhwSetTemp": 10.0,
+      "dhwOpMode": 256,
+      "onOffCycles": 23
+    },
+    "FC": {
+      "weekday": 4,
+      "hour": 21,
+      "minute": 23,
+      "second": 40,
+      "year": 2025,
+      "month": 12,
+      "day": 5
+    },
+    "17": {
+      "error": "Unknown command"
+    },
+    "0A17": {
+      "error": "Unknown register"
+    },
+    "09": {
+      "compressorHeatingHours": 3964,
+      "compressorCoolingHours": 0,
+      "compressorDHWHours": 560,
+      "boosterDHWHours": 0,
+      "boosterHeatingHours": 48,
+      "compressorHeatingStarts": 0,
+      "compressorCoolingStarts": 1955
+    },
+    "D1": {
+      "numberOfFaults": 0
+    }
+  }
+}

@@ -23,6 +23,7 @@ from thz_protocol import (
     parse_firmware,
     parse_sglobal,
     parse_shc1,
+    parse_dhw,
     parse_p01,
     parse_history,
     parse_time,
@@ -470,7 +471,6 @@ class TestParseSglobal:
         assert result["dhwTemp"] == 20.0
         assert result["flowTempHC2"] == 20.0
         assert result["insideTemp"] == 20.0
-        assert result["insideTempValid"] is True
     
     def test_parse_sglobal_negative_outside(self):
         """Test parsing negative outside temperature."""
@@ -480,18 +480,17 @@ class TestParseSglobal:
     
     def test_parse_sglobal_invalid_inside(self):
         """Test detecting invalid inside temperature (no sensor)."""
-        # Inside temp -60.0°C = 0xFDA8
+        # Inside temp -60.0°C = 0xFDA8 - sensor not connected, should not be in result
         data = "FB" + "0000" * 7 + "FDA8" + "0000" * 2
         result = parse_sglobal(data)
-        assert result["insideTemp"] == -60.0
-        assert result["insideTempValid"] is False
+        # insideTemp with -60.0 is filtered out (sensor not connected)
+        assert "insideTemp" not in result
     
     def test_parse_sglobal_valid_inside(self):
         """Test valid inside temperature."""
         data = "FB" + "0000" * 7 + "00D7" + "0000" * 2  # 21.5°C
         result = parse_sglobal(data)
         assert result["insideTemp"] == 21.5
-        assert result["insideTempValid"] is True
     
     def test_parse_sglobal_short_data(self):
         """Test parsing with minimal data."""
@@ -505,12 +504,13 @@ class TestParseSglobal:
         result = parse_sglobal("FB")
         assert "collectorTemp" not in result
     
-    def test_parse_sglobal_fan_speeds(self):
-        """Test parsing fan speeds."""
-        # Need 66+ hex chars after FB to get fan speeds
-        data = "FB" + "0000" * 33  # 66 chars of zeros
+    def test_parse_sglobal_ventilator_power(self):
+        """Test parsing ventilator power at position 72-73."""
+        # mainVentilatorPower is at position 72-73 (chars 72-73 after FB prefix)
+        # So we need: FB (removed) + 72 chars padding + 39 (power value)
+        data = "FB" + "00" * 36 + "39"  # 36 bytes = 72 chars, then 0x39 = 57
         result = parse_sglobal(data)
-        assert "outputVentilatorSpeed" in result or "inputVentilatorSpeed" in result
+        assert result["mainVentilatorPower"] == 57
 
 
 # =============================================================================
@@ -518,17 +518,33 @@ class TestParseSglobal:
 # =============================================================================
 
 class TestParseShc1:
-    """Tests for sHC1 parsing."""
+    """Tests for sHC1 parsing - positions verified with real device data."""
     
     def test_parse_shc1_basic(self):
-        """Test parsing heating circuit 1 data."""
-        # F4 + flowTempSet(4) + roomTempSet(4) + roomTemp(4)
-        data = "F4" + "015E" + "00D2" + "00CD"  # 35.0, 21.0, 20.5
+        """Test parsing heating circuit 1 data with verified positions."""
+        # Real device positions: outsideTemp at 0-3, returnTemp at 8-11, flowTemp at 16-19
+        # F4 + outsideTemp(0-3) + padding(4-7) + returnTemp(8-11) + padding(12-15) + flowTemp(16-19)
+        data = "F4" + "00C8" + "0000" + "00BE" + "0000" + "015E"  # 2 + 20 = 22 chars
         result = parse_shc1(data)
         
-        assert result["flowTempSet"] == 35.0
-        assert result["roomTempSet"] == 21.0
-        assert result["roomTemp"] == 20.5
+        assert result["hc1OutsideTemp"] == 20.0
+        assert result["hc1ReturnTemp"] == 19.0
+        assert result["hc1FlowTemp"] == 35.0
+    
+    def test_parse_shc1_with_temperatures(self):
+        """Test parsing with all temperature fields."""
+        # Real positions: outsideTemp(0-3), returnTemp(8-11), flowTemp(16-19), 
+        # heatSetTemp(24-27), heatTemp(28-31)
+        data = "F4" + "00C8" + "0000" + "00BE" + "0000" + "015E" + "0000" + "014A" + "00DC"
+        # pos 0-3: 00C8=20.0, pos 8-11: 00BE=19.0, pos 16-19: 015E=35.0, 
+        # pos 24-27: 014A=33.0, pos 28-31: 00DC=22.0
+        result = parse_shc1(data)
+        
+        assert result.get("hc1OutsideTemp") == 20.0
+        assert result.get("hc1ReturnTemp") == 19.0
+        assert result.get("hc1FlowTemp") == 35.0
+        assert result.get("heatSetTemp") == 33.0
+        assert result.get("heatTemp") == 22.0
     
     def test_parse_shc1_with_cycles(self):
         """Test parsing with on/off cycles."""
@@ -540,16 +556,68 @@ class TestParseShc1:
         assert result["onOffCycles"] == 23
     
     def test_parse_shc1_short(self):
-        """Test parsing with minimal data."""
-        data = "F4" + "015E"  # Only flowTempSet
+        """Test parsing with minimal data - only outsideTemp at pos 0-3."""
+        data = "F4" + "00C8"  # F4 + outsideTemp=20.0 at pos 0-3
         result = parse_shc1(data)
-        assert result["flowTempSet"] == 35.0
-        assert "roomTempSet" not in result
+        assert result["hc1OutsideTemp"] == 20.0
+        assert "hc1FlowTemp" not in result  # Not enough data
     
     def test_parse_shc1_empty(self):
         """Test parsing with only command echo."""
         result = parse_shc1("F4")
-        assert "flowTempSet" not in result
+        assert "hc1FlowTemp" not in result
+
+
+# =============================================================================
+# Parse DHW Tests
+# =============================================================================
+
+class TestParseDhw:
+    """Tests for sDHW (F3) parsing - positions verified with real device data."""
+    
+    def test_parse_dhw_basic(self):
+        """Test parsing DHW data with temperature values."""
+        # Real positions: dhwTemp at 0-3, outsideTemp at 4-7, dhwSetTemp at 8-11
+        data = "F3" + "01D6" + "00C8" + "01C2"  # dhwTemp=47.0, outside=20.0, setTemp=45.0
+        result = parse_dhw(data)
+        
+        assert result["dhwTemp"] == 47.0
+        assert result["dhwOutsideTemp"] == 20.0
+        assert result["dhwSetTemp"] == 45.0
+    
+    def test_parse_dhw_with_block_times(self):
+        """Test parsing with compressor block time."""
+        # compBlockTime at pos 12-15
+        data = "F3" + "01D6" + "00C8" + "01C2" + "003C"  # compBlockTime=60 at pos 12-15
+        result = parse_dhw(data)
+        assert result.get("dhwCompBlockTime") == 60
+    
+    def test_parse_dhw_with_mode(self):
+        """Test parsing with booster stage and op mode."""
+        # Real positions: boosterStage at 24-25, pasteurisationMode at 28-29, opMode at 30-31
+        # Need 32 chars after F3 to get to opMode
+        # F3 + 12 chars temps + 12 chars padding + booster(2) + 2 padding + pasteur(2) + opMode(2)
+        padding1 = "0000" * 3  # 12 chars for positions 12-23
+        data = "F3" + "01D6" + "00C8" + "01C2" + padding1 + "02" + "00" + "01" + "01"
+        # pos 24-25: 02 (booster=2), pos 28-29: 01 (pasteur), pos 30-31: 01 (opMode)
+        result = parse_dhw(data)
+        assert result.get("dhwBoosterStage") == 2
+        assert result.get("pasteurisationMode") == 1
+        assert result.get("pasteurisationActive") == True
+        assert result.get("dhwOpMode") == 1
+        assert result.get("dhwOpModeText") == "normal"
+    
+    def test_parse_dhw_short(self):
+        """Test parsing with minimal data."""
+        data = "F3" + "01D6"  # Only dhwTemp at pos 0-3
+        result = parse_dhw(data)
+        assert result["dhwTemp"] == 47.0
+        assert "dhwSetTemp" not in result
+    
+    def test_parse_dhw_empty(self):
+        """Test parsing with only command echo."""
+        result = parse_dhw("F3")
+        assert "dhwTemp" not in result
 
 
 # =============================================================================
@@ -913,3 +981,102 @@ class TestIntegration:
             response = parse_response(data)
             assert response.success is False
             assert response.error == expected_error
+
+
+# =============================================================================
+# Real Device Data Tests (Firmware 7.02)
+# =============================================================================
+
+class TestRealDeviceData:
+    """Tests using real device data captured from Tecalor THZ with FW 7.02."""
+    
+    # Raw data from real device dump
+    RAW_FD = "FD02BE"
+    RAW_FB = "FBFDA8002A01170116022F01C18001FDA8000C0128100817000000000000000000000000003900000000032A070B00000000000000000000007E000000000116013A0095008A011A00000000097D"
+    RAW_F3 = "F301C1002901E000001008202D02010001759E17"
+    RAW_F4 = "F4002A000001180000011A011A011800000201100800640100000000CD01B5000000CD020000000017"
+    RAW_FC = "FC04151728190C05"
+    RAW_09 = "090F7C0000023000000030000007A3"
+    RAW_D1 = "D10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+    
+    def test_parse_real_firmware(self):
+        """Test parsing real firmware data."""
+        result = parse_firmware(self.RAW_FD)
+        assert result["version"] == "7.02"
+        assert result["version_raw"] == 702
+    
+    def test_parse_real_sglobal_temperatures(self):
+        """Test parsing real sGlobal temperatures."""
+        result = parse_sglobal(self.RAW_FB)
+        
+        # These values were verified against the heat pump display
+        assert result["outsideTemp"] == 4.2
+        assert result["flowTemp"] == 27.9
+        assert result["returnTemp"] == 27.8
+        assert result["hotGasTemp"] == 55.9
+        assert result["dhwTemp"] == 44.9
+        
+        # Collector temp -60.0 means no sensor (0xFDA8) - kept for diagnostics
+        assert result["collectorTemp"] == -60.0
+        
+        # flowTempHC2 -3276.7 means not installed (0x8001)
+        assert "flowTempHC2" not in result  # Filtered as not installed
+    
+    def test_parse_real_sglobal_evaporator_condenser(self):
+        """Test parsing evaporator and condenser temps from real data."""
+        result = parse_sglobal(self.RAW_FB)
+        
+        assert result["evaporatorTemp"] == 1.2
+        assert result["condenserTemp"] == 29.6
+    
+    def test_parse_real_dhw(self):
+        """Test parsing real DHW (F3) data."""
+        result = parse_dhw(self.RAW_F3)
+        
+        # DHW temperatures
+        assert result["dhwTemp"] == 44.9
+        assert result["dhwOutsideTemp"] == 4.1
+        assert result["dhwSetTemp"] == 48.0
+        
+        # DHW operation mode
+        assert result.get("dhwOpMode") in [1, 2, 3]  # normal, setback, or standby
+    
+    def test_parse_real_shc1(self):
+        """Test parsing real HC1 (F4) data."""
+        result = parse_shc1(self.RAW_F4)
+        
+        # Temperatures
+        assert result["hc1OutsideTemp"] == 4.2
+        assert result["hc1ReturnTemp"] == 28.0
+        assert result["hc1FlowTemp"] == 28.2
+        
+        # On/off cycles
+        assert result["onOffCycles"] == 23
+    
+    def test_parse_real_time(self):
+        """Test parsing real time (FC) data."""
+        result = parse_time(self.RAW_FC)
+        
+        assert result["weekday"] == 4  # Thursday
+        assert result["hour"] == 21
+        assert result["minute"] == 23
+        assert result["year"] == 2025
+        assert result["month"] == 12
+        assert result["day"] == 5
+    
+    def test_parse_real_history(self):
+        """Test parsing real history (09) data."""
+        result = parse_history(self.RAW_09)
+        
+        # Compressor hours
+        assert result["compressorHeatingHours"] == 3964
+        assert result["compressorDHWHours"] == 560
+        
+        # Booster hours
+        assert result["boosterHeatingHours"] == 48
+    
+    def test_parse_real_errors_none(self):
+        """Test parsing real error data with no faults."""
+        result = parse_errors(self.RAW_D1)
+        assert result["numberOfFaults"] == 0
+
