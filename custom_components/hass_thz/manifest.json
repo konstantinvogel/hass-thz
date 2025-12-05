@@ -1,6 +1,6 @@
 {
   "domain": "thz",
-  "name": "Tecalor THZ / Stiebel Eltron LWZ Heat Pump",
+  "name": "Tecalor THZ",
   "codeowners": ["@konstantinvogel"],
   "config_flow": true,
   "dependencies": [],
