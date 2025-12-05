@@ -29,11 +29,11 @@ ACK = bytes.fromhex("10")
 STX = bytes.fromhex("02")
 DLE = bytes.fromhex("10")
 
-# Timeouts
-READ_TIMEOUT = 2.0
-WRITE_TIMEOUT = 1.0
+# Timeouts (increased for reliability)
+READ_TIMEOUT = 3.0
+WRITE_TIMEOUT = 2.0
 RETRY_COUNT = 3
-RETRY_DELAY = 0.5
+RETRY_DELAY = 0.8
 
 
 @dataclass
@@ -450,25 +450,54 @@ class THZProtocol:
     def _encode_command(self, register: str) -> bytes:
         """Encode a GET command for a register.
         
-        Format: 0100 + register + checksum + 1003
+        Based on FHEM THZ_encodecommand:
+        Format: header + checksum + cmd + footer
+        
+        Checksum is calculated over: header + "XX" + cmd + footer
+        (where XX is a placeholder for checksum position)
+        
+        Then escape sequences are applied to checksum + cmd portion.
         """
-        # Build message without header
-        reg_bytes = bytes.fromhex(register)
+        header = "0100"
+        footer = "1003"
+        cmd = register.upper()
         
-        # Calculate checksum on register only
-        checksum = self._calculate_checksum(reg_bytes)
+        # Calculate checksum over: header + XX (placeholder) + cmd + footer
+        # The checksum itself is NOT included in the calculation
+        checksum_input = header + "XX" + cmd + footer
         
-        # Build full message: header + register + checksum + footer
-        message = HEADER_GET + reg_bytes + bytes([checksum]) + FOOTER
+        # Sum all bytes except the XX placeholder (positions 4-5)
+        checksum = 0
+        for i in range(0, len(checksum_input) - 4, 2):  # -4 to skip footer in loop
+            if i != 4:  # Skip the XX placeholder at position 4
+                checksum += int(checksum_input[i:i+2], 16)
+        checksum = checksum % 256
         
-        # Escape the data portion (between header and footer)
-        # Actually, we need to escape everything except the header/footer markers
-        data_to_escape = reg_bytes + bytes([checksum])
-        escaped_data = self._escape_bytes(data_to_escape)
+        # Build: checksum + cmd (this part gets escaped)
+        data_to_escape = f"{checksum:02X}" + cmd
         
-        message = HEADER_GET + escaped_data + FOOTER
+        # Apply escape sequences:
+        # 10 -> 1010
+        # 2B -> 2B18
+        escaped = ""
+        i = 0
+        while i < len(data_to_escape):
+            two_chars = data_to_escape[i:i+2]
+            if two_chars == "10":
+                escaped += "1010"
+                i += 2
+            elif two_chars == "2B":
+                escaped += "2B18"
+                i += 2
+            else:
+                escaped += data_to_escape[i]
+                i += 1
         
-        _LOGGER.debug("Encoded command: %s", message.hex())
+        # Final message: header + escaped(checksum + cmd) + footer
+        message_hex = header + escaped + footer
+        message = bytes.fromhex(message_hex)
+        
+        _LOGGER.debug("Encoded command for %s: %s", register, message.hex())
         return message
 
     def _read_byte(self, timeout: float = READ_TIMEOUT) -> bytes | None:
@@ -483,30 +512,46 @@ class THZProtocol:
         return None
 
     def _read_until_complete(self, timeout: float = READ_TIMEOUT) -> bytes:
-        """Read response until complete (ends with 1003)."""
+        """Read response until complete (starts with 01, ends with 1003).
+        
+        Based on FHEM THZ_ReadAnswer - handles chunked reads.
+        """
         if not self._serial:
             raise THZProtocolError("Serial port not open")
         
         buffer = bytearray()
         start_time = time.time()
+        max_iterations = 300  # Safety limit
+        iteration = 0
         
-        while time.time() - start_time < timeout:
+        while time.time() - start_time < timeout and iteration < max_iterations:
+            iteration += 1
+            
+            # Read available bytes
             if self._serial.in_waiting:
-                byte = self._serial.read(1)
-                buffer.extend(byte)
+                chunk = self._serial.read(self._serial.in_waiting)
+                buffer.extend(chunk)
                 
-                # Check for footer 0x10 0x03
-                if len(buffer) >= 2 and buffer[-2:] == b'\x10\x03':
-                    # Make sure it's not escaped (0x10 0x10 0x03)
-                    if len(buffer) >= 3 and buffer[-3] == 0x10:
-                        continue
-                    break
-            else:
-                time.sleep(0.002)
-        else:
-            raise THZProtocolError(f"Timeout reading response, got: {buffer.hex()}")
+                # Check if we have a complete message
+                data_hex = buffer.hex().upper()
+                
+                # Message complete when: starts with 01 and ends with 1003
+                if data_hex.startswith("01") and data_hex.endswith("1003"):
+                    _LOGGER.debug("Complete message received: %s", data_hex)
+                    return bytes(buffer)
+                    
+                # Also check for single NAK (0x15)
+                if data_hex == "15":
+                    return bytes(buffer)
+            
+            # Small delay between reads
+            time.sleep(0.005)
         
-        return bytes(buffer)
+        # Timeout - return what we have for debugging
+        if buffer:
+            raise THZProtocolError(f"Timeout reading response, partial data: {buffer.hex()}")
+        else:
+            raise THZProtocolError("Timeout reading response, no data received")
 
     def _send_and_receive(self, command: bytes) -> bytes:
         """Send a command and receive the response using proper handshake.
@@ -578,32 +623,65 @@ class THZProtocol:
                 self._serial.write(DLE)
                 self._serial.flush()
                 
-                # Process response: remove footer (1003), unescape, verify checksum
-                if len(raw_response) < 4:
-                    raise THZProtocolError(f"Response too short: {raw_response.hex()}")
+                # Decode response according to FHEM THZ_decode
+                # Response format: header(2 bytes) + checksum(1 byte) + data + footer(2 bytes)
+                # First unescape, then validate
                 
-                # Remove footer (last 2 bytes: 0x10 0x03)
-                data_with_checksum = raw_response[:-2]
+                response_hex = raw_response.hex().upper()
                 
-                # Unescape the data
-                unescaped = self._unescape_bytes(data_with_checksum)
+                # Unescape: 1010 -> 10, 2B18 -> 2B
+                response_hex = response_hex.replace("1010", "10")
+                response_hex = response_hex.replace("2B18", "2B")
                 
-                if len(unescaped) < 2:
-                    raise THZProtocolError("Unescaped response too short")
+                _LOGGER.debug("Unescaped response: %s", response_hex)
                 
-                # Last byte is checksum
-                data = unescaped[:-1]
-                received_checksum = unescaped[-1]
-                calculated_checksum = self._calculate_checksum(data)
+                # Check for NAK
+                if response_hex == "15":
+                    raise THZProtocolError("NAK received from device")
                 
-                if received_checksum != calculated_checksum:
-                    raise THZProtocolError(
-                        f"Checksum mismatch: received {received_checksum:02X}, "
-                        f"calculated {calculated_checksum:02X}"
-                    )
+                # Check minimum length
+                if len(response_hex) < 8:  # header(4) + checksum(2) + footer(4) minimum
+                    raise THZProtocolError(f"Response too short: {response_hex}")
                 
-                _LOGGER.debug("Response data: %s", data.hex())
-                return data
+                # Check header
+                header = response_hex[:4]
+                if header == "0100":
+                    # Normal GET response - verify checksum
+                    # Checksum is calculated over entire message, checksum byte position is skipped
+                    received_checksum = response_hex[4:6]
+                    
+                    # Calculate checksum: sum of all bytes except checksum position, mod 256
+                    calc_sum = 0
+                    for i in range(0, len(response_hex) - 4, 2):  # exclude footer
+                        if i != 4:  # skip checksum position
+                            calc_sum += int(response_hex[i:i+2], 16)
+                    calculated_checksum = f"{calc_sum % 256:02X}"
+                    
+                    if received_checksum != calculated_checksum:
+                        raise THZProtocolError(
+                            f"Checksum mismatch: received {received_checksum}, "
+                            f"calculated {calculated_checksum}"
+                        )
+                    
+                    # Extract data between checksum and footer: 0100 XX data 1003
+                    # Data starts at position 6 (after header + checksum) and ends before footer
+                    data_hex = response_hex[6:-4]  # Remove header+checksum and footer
+                    _LOGGER.debug("Response data: %s", data_hex)
+                    return bytes.fromhex(data_hex) if data_hex else b''
+                    
+                elif header == "0101":
+                    raise THZProtocolError("Timing issue in communication")
+                elif header == "0102":
+                    raise THZProtocolError("CRC error in request")
+                elif header == "0103":
+                    raise THZProtocolError("Unknown command")
+                elif header == "0104":
+                    raise THZProtocolError("Unknown register requested")
+                elif header == "0180":
+                    # SET response (we don't use this, but handle it)
+                    return bytes.fromhex(response_hex)
+                else:
+                    raise THZProtocolError(f"Unknown response header: {header}")
                 
             except THZProtocolError as err:
                 _LOGGER.warning("Attempt %d failed: %s", attempt + 1, err)
@@ -728,21 +806,28 @@ class THZProtocol:
         """
         self.open()
         try:
-            # Read firmware register
+            # Read firmware register (FD)
             cmd = self._encode_command("FD")
             response = self._send_and_receive(cmd)
             
-            # Parse version (position 4, length 4)
-            hex_str = response.hex()
-            if len(hex_str) >= 8:
-                version_raw = int(hex_str[4:8], 16)
+            # Response is the data portion (after header+checksum, before footer)
+            # According to FHEM parsing for sFirmware:
+            # Position 0-1: Command echo (FD)
+            # Position 2-5: Version (4 hex chars = 2 bytes)
+            hex_str = response.hex().upper()
+            _LOGGER.debug("Firmware register response: %s", hex_str)
+            
+            if len(hex_str) >= 6:
+                # Skip command echo (first 2 chars), get version (next 4 chars)
+                version_hex = hex_str[2:6]
+                version_raw = int(version_hex, 16)
                 major = version_raw // 100
                 minor = version_raw % 100
                 self._detected_firmware = f"{major}.{minor:02d}"
                 _LOGGER.info("Detected firmware: %s", self._detected_firmware)
                 return self._detected_firmware
             else:
-                raise THZProtocolError("Invalid firmware response")
+                raise THZProtocolError(f"Invalid firmware response: {hex_str}")
         except Exception as err:
             _LOGGER.error("Failed to detect firmware: %s", err)
             raise
