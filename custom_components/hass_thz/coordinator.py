@@ -1,8 +1,10 @@
 """DataUpdateCoordinator for THZ Heat Pump."""
 from __future__ import annotations
 
+import json
 import logging
-from datetime import timedelta
+import os
+from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -37,6 +39,10 @@ class THZDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Firmware info (will be populated on first update)
         self.firmware_version: str | None = None
         self.firmware_date: str | None = None
+        
+        # Backup tracking
+        self._backup_created = False
+        self._backup_path: str | None = None
         
         super().__init__(
             hass,
@@ -101,6 +107,10 @@ class THZDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # Read all sensor data
             data = protocol.get_all_sensor_data()
             
+            # Create backup on first successful read
+            if not self._backup_created and data:
+                self._create_register_backup(protocol, data)
+            
             # Add metadata
             data["_firmware"] = self.firmware_version
             data["_firmware_date"] = self.firmware_date
@@ -112,6 +122,53 @@ class THZDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # On error, close connection so it gets reopened on next try
             protocol.close()
             raise
+
+    def _create_register_backup(self, protocol: THZProtocol, parsed_data: dict[str, Any]) -> None:
+        """Create a backup of all register raw data on first read.
+        
+        This backup can be used to restore settings if something goes wrong.
+        The backup is stored in the Home Assistant config directory.
+        """
+        try:
+            # Get raw register data
+            raw_registers = protocol.get_all_raw_registers()
+            
+            # Build backup data structure
+            backup_data = {
+                "created_at": datetime.now().isoformat(),
+                "firmware_version": self.firmware_version,
+                "firmware_date": self.firmware_date,
+                "serial_port": self._port,
+                "baudrate": self._baudrate,
+                "raw_registers": raw_registers,
+                "parsed_data": {k: v for k, v in parsed_data.items() if not k.startswith("_")},
+            }
+            
+            # Create backup directory
+            backup_dir = self.hass.config.path("backups", "hass_thz")
+            os.makedirs(backup_dir, exist_ok=True)
+            
+            # Create backup filename with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            safe_port = self._port.replace("/", "_").replace("\\", "_").replace(":", "")
+            backup_filename = f"thz_backup_{safe_port}_{timestamp}.json"
+            self._backup_path = os.path.join(backup_dir, backup_filename)
+            
+            # Write backup file
+            with open(self._backup_path, "w", encoding="utf-8") as f:
+                json.dump(backup_data, f, indent=2, ensure_ascii=False, default=str)
+            
+            self._backup_created = True
+            _LOGGER.info(
+                "Created register backup at: %s (Firmware: %s)", 
+                self._backup_path, 
+                self.firmware_version
+            )
+            
+        except Exception as err:
+            _LOGGER.warning("Failed to create register backup: %s", err)
+            # Don't fail the integration if backup fails
+            self._backup_created = True  # Don't retry
 
     async def async_close(self) -> None:
         """Close the connection."""

@@ -471,70 +471,51 @@ class THZProtocol:
         _LOGGER.debug("Encoded command: %s", message.hex())
         return message
 
-    def _read_response(self) -> bytes:
-        """Read and decode a response from the heat pump."""
+    def _read_byte(self, timeout: float = READ_TIMEOUT) -> bytes | None:
+        """Read a single byte with timeout."""
+        if not self._serial:
+            return None
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            if self._serial.in_waiting:
+                return self._serial.read(1)
+            time.sleep(0.002)
+        return None
+
+    def _read_until_complete(self, timeout: float = READ_TIMEOUT) -> bytes:
+        """Read response until complete (ends with 1003)."""
         if not self._serial:
             raise THZProtocolError("Serial port not open")
-
-        # Wait for STX (0x02)
-        start_time = time.time()
-        while time.time() - start_time < READ_TIMEOUT:
-            if self._serial.in_waiting:
-                byte = self._serial.read(1)
-                if byte == STX:
-                    break
-        else:
-            raise THZProtocolError("Timeout waiting for response start")
-
-        # Read until we get the footer (0x10 0x03)
-        buffer = bytearray()
-        last_byte = None
         
-        while time.time() - start_time < READ_TIMEOUT:
+        buffer = bytearray()
+        start_time = time.time()
+        
+        while time.time() - start_time < timeout:
             if self._serial.in_waiting:
                 byte = self._serial.read(1)
                 buffer.extend(byte)
                 
-                # Check for footer (0x10 0x03)
-                if last_byte == 0x10 and byte[0] == 0x03:
-                    # Check if this is escaped 0x10 0x10 followed by 0x03
-                    # or actual footer
+                # Check for footer 0x10 0x03
+                if len(buffer) >= 2 and buffer[-2:] == b'\x10\x03':
+                    # Make sure it's not escaped (0x10 0x10 0x03)
                     if len(buffer) >= 3 and buffer[-3] == 0x10:
-                        # This was 0x10 0x10 0x03 - not a footer
-                        last_byte = byte[0]
                         continue
                     break
-                    
-                last_byte = byte[0]
+            else:
+                time.sleep(0.002)
         else:
-            raise THZProtocolError("Timeout reading response")
-
-        # Remove footer from buffer
-        if len(buffer) >= 2:
-            buffer = buffer[:-2]
-
-        # Unescape the response
-        response = self._unescape_bytes(bytes(buffer))
+            raise THZProtocolError(f"Timeout reading response, got: {buffer.hex()}")
         
-        # Verify checksum (last byte before footer)
-        if len(response) < 2:
-            raise THZProtocolError("Response too short")
-            
-        data = response[:-1]
-        received_checksum = response[-1]
-        calculated_checksum = self._calculate_checksum(data)
-        
-        if received_checksum != calculated_checksum:
-            raise THZProtocolError(
-                f"Checksum mismatch: received {received_checksum:02X}, "
-                f"calculated {calculated_checksum:02X}"
-            )
-
-        _LOGGER.debug("Received response: %s", response.hex())
-        return data
+        return bytes(buffer)
 
     def _send_and_receive(self, command: bytes) -> bytes:
-        """Send a command and receive the response."""
+        """Send a command and receive the response using proper handshake.
+        
+        Protocol sequence (from FHEM 00_THZ.pm):
+        1. Send STX (0x02) -> Expect DLE (0x10)
+        2. Send command -> Expect DLE STX (0x10 0x02) or just STX (0x02)
+        3. Send DLE (0x10) -> Read response data
+        """
         if not self._serial:
             raise THZProtocolError("Serial port not open")
 
@@ -542,19 +523,96 @@ class THZProtocol:
             try:
                 # Clear buffers
                 self._serial.reset_input_buffer()
+                self._serial.reset_output_buffer()
                 
-                # Send command
-                _LOGGER.debug("Sending: %s (attempt %d)", command.hex(), attempt + 1)
+                # Step 0: Send STX (0x02) to initiate communication
+                _LOGGER.debug("Step 0: Sending STX (attempt %d)", attempt + 1)
+                self._serial.write(STX)
+                self._serial.flush()
+                
+                # Expect DLE (0x10) response
+                response = self._read_byte(timeout=1.0)
+                if response is None:
+                    raise THZProtocolError("No response to STX")
+                if response != DLE:
+                    if response == b'\x15':  # NAK
+                        raise THZProtocolError("Received NAK at step 0")
+                    raise THZProtocolError(f"Expected DLE (0x10) at step 0, got: {response.hex()}")
+                _LOGGER.debug("Step 0: Received DLE OK")
+                
+                # Step 1: Send the actual command
+                _LOGGER.debug("Step 1: Sending command: %s", command.hex())
                 self._serial.write(command)
                 self._serial.flush()
                 
-                # Read response
-                return self._read_response()
+                # Expect DLE STX (0x10 0x02) - sometimes comes as separate bytes
+                response = self._read_byte(timeout=1.0)
+                if response is None:
+                    raise THZProtocolError("No response to command")
+                
+                # Handle responses: could be "10", "02", "1002", or "15" (NAK)
+                if response == b'\x15':  # NAK
+                    raise THZProtocolError("Received NAK at step 1")
+                
+                if response == DLE:  # 0x10
+                    # Read next byte, should be STX (0x02)
+                    time.sleep(0.005)  # Small delay for slow devices
+                    response2 = self._read_byte(timeout=0.5)
+                    if response2 != STX:
+                        raise THZProtocolError(f"Expected STX after DLE, got: {response2.hex() if response2 else 'None'}")
+                elif response != STX:  # Should be 0x02 directly
+                    raise THZProtocolError(f"Expected DLE or STX at step 1, got: {response.hex()}")
+                
+                _LOGGER.debug("Step 1: Received DLE STX OK")
+                
+                # Step 2: Send DLE (0x10) to request data
+                _LOGGER.debug("Step 2: Sending DLE to request data")
+                self._serial.write(DLE)
+                self._serial.flush()
+                
+                # Read the actual response data
+                raw_response = self._read_until_complete()
+                _LOGGER.debug("Raw response: %s", raw_response.hex())
+                
+                # Send final DLE acknowledgment
+                self._serial.write(DLE)
+                self._serial.flush()
+                
+                # Process response: remove footer (1003), unescape, verify checksum
+                if len(raw_response) < 4:
+                    raise THZProtocolError(f"Response too short: {raw_response.hex()}")
+                
+                # Remove footer (last 2 bytes: 0x10 0x03)
+                data_with_checksum = raw_response[:-2]
+                
+                # Unescape the data
+                unescaped = self._unescape_bytes(data_with_checksum)
+                
+                if len(unescaped) < 2:
+                    raise THZProtocolError("Unescaped response too short")
+                
+                # Last byte is checksum
+                data = unescaped[:-1]
+                received_checksum = unescaped[-1]
+                calculated_checksum = self._calculate_checksum(data)
+                
+                if received_checksum != calculated_checksum:
+                    raise THZProtocolError(
+                        f"Checksum mismatch: received {received_checksum:02X}, "
+                        f"calculated {calculated_checksum:02X}"
+                    )
+                
+                _LOGGER.debug("Response data: %s", data.hex())
+                return data
                 
             except THZProtocolError as err:
                 _LOGGER.warning("Attempt %d failed: %s", attempt + 1, err)
                 if attempt < RETRY_COUNT - 1:
                     time.sleep(RETRY_DELAY)
+                    # Reset the serial line
+                    if self._serial:
+                        self._serial.reset_input_buffer()
+                        self._serial.reset_output_buffer()
                 else:
                     raise
 
@@ -827,3 +885,50 @@ class THZProtocol:
         """Get detailed firmware information."""
         self.open()
         return self.read_register("sFirmware")
+
+    def get_all_raw_registers(self) -> dict[str, str]:
+        """Read all registers and return raw hex data for backup.
+        
+        Returns a dictionary mapping register command to raw hex response.
+        This is used for creating a backup of all register values.
+        """
+        self.open()
+        raw_data = {}
+        
+        # Collect all unique commands from REGISTERS
+        commands_read = set()
+        
+        for register_name, reg_info in REGISTERS.items():
+            cmd_hex = reg_info.get("cmd", "")
+            if not cmd_hex or cmd_hex in commands_read:
+                continue
+                
+            commands_read.add(cmd_hex)
+            
+            try:
+                cmd = self._encode_command(cmd_hex)
+                response = self._send_and_receive(cmd)
+                raw_data[cmd_hex] = response.hex()
+                time.sleep(0.05)  # Small delay between reads
+            except THZProtocolError as e:
+                _LOGGER.debug("Failed to read register %s: %s", cmd_hex, e)
+                raw_data[cmd_hex] = f"ERROR: {e}"
+            except Exception as e:
+                _LOGGER.warning("Unexpected error reading %s: %s", cmd_hex, e)
+                raw_data[cmd_hex] = f"ERROR: {e}"
+        
+        # Also read energy combined registers' second commands
+        for register_name, reg_info in REGISTERS.items():
+            if reg_info.get("type") == "energy_combined":
+                cmd2_hex = reg_info.get("cmd2", "")
+                if cmd2_hex and cmd2_hex not in commands_read:
+                    commands_read.add(cmd2_hex)
+                    try:
+                        cmd = self._encode_command(cmd2_hex)
+                        response = self._send_and_receive(cmd)
+                        raw_data[cmd2_hex] = response.hex()
+                        time.sleep(0.05)
+                    except Exception as e:
+                        raw_data[cmd2_hex] = f"ERROR: {e}"
+        
+        return raw_data

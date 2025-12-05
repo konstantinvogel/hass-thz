@@ -12,12 +12,9 @@ from homeassistant.const import CONF_NAME
 
 from .const import (
     CONF_BAUDRATE,
-    CONF_FIRMWARE,
     CONF_SERIAL_PORT,
     DEFAULT_BAUDRATE,
-    DEFAULT_FIRMWARE,
     DOMAIN,
-    FIRMWARE_OPTIONS,
 )
 from .thz_protocol import THZProtocol
 
@@ -52,23 +49,29 @@ class THZConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             serial_port = user_input[CONF_SERIAL_PORT]
             baudrate = user_input.get(CONF_BAUDRATE, DEFAULT_BAUDRATE)
-            firmware = user_input.get(CONF_FIRMWARE, DEFAULT_FIRMWARE)
 
-            # Try to connect and validate
+            # Try to connect, validate, and detect firmware
+            detected_firmware = None
             try:
-                protocol = THZProtocol(serial_port, baudrate, firmware)
-                valid = await self.hass.async_add_executor_job(
-                    protocol.test_connection
-                )
-                protocol.close()
+                protocol = THZProtocol(serial_port, baudrate)
                 
-                if not valid:
-                    errors["base"] = "cannot_connect"
+                # Test connection and detect firmware automatically
+                def test_and_detect():
+                    protocol.open()
+                    fw = protocol.detect_firmware()
+                    protocol.close()
+                    return fw
+                
+                detected_firmware = await self.hass.async_add_executor_job(
+                    test_and_detect
+                )
+                _LOGGER.info("Detected firmware: %s", detected_firmware)
+                
             except Exception as err:
                 _LOGGER.error("Connection test failed: %s", err)
                 errors["base"] = "cannot_connect"
 
-            if not errors:
+            if not errors and detected_firmware:
                 # Set unique ID based on serial port
                 await self.async_set_unique_id(serial_port)
                 self._abort_if_unique_id_configured()
@@ -78,19 +81,15 @@ class THZConfigFlow(ConfigFlow, domain=DOMAIN):
                     data={
                         CONF_SERIAL_PORT: serial_port,
                         CONF_BAUDRATE: baudrate,
-                        CONF_FIRMWARE: firmware,
                     },
                 )
 
-        # Build schema with detected ports
+        # Build schema with detected ports - firmware is auto-detected
         data_schema = vol.Schema(
             {
                 vol.Required(CONF_SERIAL_PORT): vol.In(ports) if ports else str,
                 vol.Optional(CONF_BAUDRATE, default=DEFAULT_BAUDRATE): vol.In(
                     [9600, 19200, 38400, 57600, 115200]
-                ),
-                vol.Optional(CONF_FIRMWARE, default=DEFAULT_FIRMWARE): vol.In(
-                    FIRMWARE_OPTIONS
                 ),
                 vol.Optional(CONF_NAME): str,
             }
