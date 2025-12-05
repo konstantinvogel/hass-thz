@@ -1,7 +1,7 @@
 """Constants for the THZ integration."""
 from typing import Final
 
-DOMAIN: Final = "thz"
+DOMAIN: Final = "hass_thz"
 
 # Configuration
 CONF_SERIAL_PORT: Final = "serial_port"
