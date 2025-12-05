@@ -2,8 +2,8 @@
   "config": {
     "step": {
       "user": {
-        "title": "THZ Heat Pump Connection",
-        "description": "Configure the connection to your Tecalor THZ / Stiebel Eltron LWZ heat pump. Firmware will be detected automatically.",
+        "title": "Tecalor THZ / Stiebel Eltron LWZ",
+        "description": "Configure the connection to your Tecalor THZ or Stiebel Eltron LWZ heat pump. Firmware will be detected automatically.",
         "data": {
           "serial_port": "Serial Port",
           "baudrate": "Baud Rate",

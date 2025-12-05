@@ -1,8 +1,8 @@
-# THZ Heat Pump Integration for Home Assistant
+# Tecalor THZ / Stiebel Eltron LWZ Heat Pump Integration
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 
-Home Assistant custom component for **Tecalor THZ** and **Stiebel Eltron LWZ** heat pumps.
+Home Assistant custom component for **Tecalor THZ** and **Stiebel Eltron LWZ** heat pumps with ventilation (Lüftungsanlage).
 
 Based on the excellent work from the [FHEM THZ module](https://wiki.fhem.de/wiki/Tecalor_THZ).
 

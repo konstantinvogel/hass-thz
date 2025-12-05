@@ -181,8 +181,8 @@ class THZDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Return device info for the heat pump."""
         return {
             "identifiers": {(DOMAIN, self._port)},
-            "name": "THZ Heat Pump",
+            "name": "Tecalor THZ / Stiebel Eltron LWZ",
             "manufacturer": "Tecalor / Stiebel Eltron",
-            "model": "THZ / LWZ",
+            "model": "THZ / LWZ Heat Pump",
             "sw_version": self.firmware_version,
         }

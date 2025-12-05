@@ -2,18 +2,16 @@
   "config": {
     "step": {
       "user": {
-        "title": "THZ Heat Pump Connection",
-        "description": "Configure the connection to your Tecalor THZ / Stiebel Eltron LWZ heat pump.",
+        "title": "Tecalor THZ / Stiebel Eltron LWZ",
+        "description": "Configure the connection to your Tecalor THZ or Stiebel Eltron LWZ heat pump. Firmware will be detected automatically.",
         "data": {
           "serial_port": "Serial Port",
           "baudrate": "Baud Rate",
-          "firmware": "Firmware Version",
           "name": "Device Name (optional)"
         },
         "data_description": {
           "serial_port": "The serial port your heat pump is connected to (e.g., /dev/ttyUSB0 or COM3)",
-          "baudrate": "Communication speed (usually 115200 for USB connection)",
-          "firmware": "Select your heat pump firmware version"
+          "baudrate": "Communication speed (usually 115200 for USB connection)"
         }
       }
     },

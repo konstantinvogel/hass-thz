@@ -2,18 +2,16 @@
   "config": {
     "step": {
       "user": {
-        "title": "THZ Wärmepumpe Verbindung",
-        "description": "Konfiguriere die Verbindung zu deiner Tecalor THZ / Stiebel Eltron LWZ Wärmepumpe.",
+        "title": "Tecalor THZ / Stiebel Eltron LWZ",
+        "description": "Konfiguriere die Verbindung zu deiner Tecalor THZ oder Stiebel Eltron LWZ Wärmepumpe. Die Firmware wird automatisch erkannt.",
         "data": {
           "serial_port": "Serieller Port",
           "baudrate": "Baudrate",
-          "firmware": "Firmware Version",
           "name": "Gerätename (optional)"
         },
         "data_description": {
           "serial_port": "Der serielle Port an dem die Wärmepumpe angeschlossen ist (z.B. /dev/ttyUSB0 oder COM3)",
-          "baudrate": "Kommunikationsgeschwindigkeit (normalerweise 115200 für USB)",
-          "firmware": "Wähle die Firmware-Version deiner Wärmepumpe"
+          "baudrate": "Kommunikationsgeschwindigkeit (normalerweise 115200 für USB)"
         }
       }
     },
