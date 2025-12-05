@@ -1,0 +1,12 @@
+{
+  "domain": "thz",
+  "name": "Tecalor THZ / Stiebel Eltron LWZ Heat Pump",
+  "codeowners": ["@konstantinvogel"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/konstantinvogel/hass-thz",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/konstantinvogel/hass-thz/issues",
+  "requirements": ["pyserial==3.5"],
+  "version": "0.1.0"
+}
