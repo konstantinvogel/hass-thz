@@ -1,0 +1,106 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "THZ Connection Type",
+        "description": "Select how to connect to your THZ heat pump.",
+        "data": {
+          "connection_type": "Connection Type"
+        }
+      },
+      "ip": {
+        "title": "Network Connection",
+        "description": "Configure the network connection to your THZ heat pump via ser2net.",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "connection_type": "Connection Type"
+        }
+      },
+      "usb": {
+        "title": "USB/Serial Connection",
+        "description": "Configure the USB/Serial connection to your THZ heat pump.",
+        "data": {
+          "device": "Serial Device",
+          "connection_type": "Connection Type",
+          "Baudrate": "Baud Rate"
+        }
+      },
+      "name": {
+        "title": "Device Name",
+        "description": "Optionally provide a name and area for this device.",
+        "data": {
+          "alias": "Device Name",
+          "area": "Area"
+        }
+      },
+      "log": {
+        "title": "Logging",
+        "description": "Configure the log level for this integration.",
+        "data": {
+          "log_level": "Log Level"
+        }
+      },
+      "refresh_blocks": {
+        "title": "Refresh Intervals",
+        "description": "Configure the refresh interval for each data block (in seconds).",
+        "data_description": {
+          "hint": "Refresh interval per block (seconds)"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure THZ",
+        "description": "Update the configuration for this THZ device."
+      }
+    },
+    "abort": {
+      "already_configured": "This device is already configured.",
+      "cannot_detect_blocks": "Could not detect available blocks from the heat pump.",
+      "reconfigured": "Configuration updated successfully."
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the device.",
+      "unknown": "An unexpected error occurred."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "outside_temp": {
+        "name": "Outside Temperature"
+      },
+      "flow_temp": {
+        "name": "Flow Temperature"
+      },
+      "return_temp": {
+        "name": "Return Temperature"
+      },
+      "hotgas_temp": {
+        "name": "Hot Gas Temperature"
+      },
+      "dhw_temp": {
+        "name": "DHW Temperature"
+      },
+      "flow_temp_hc2": {
+        "name": "Flow Temperature HC2"
+      },
+      "evaporator_temp": {
+        "name": "Evaporator Temperature"
+      },
+      "condenser_temp": {
+        "name": "Condenser Temperature"
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "THZ Options",
+        "description": "Configure THZ integration options.",
+        "data": {
+          "log_level": "Log Level",
+          "update_interval": "Update Interval (seconds)"
+        }
+      }
+    }
+  }
+}
