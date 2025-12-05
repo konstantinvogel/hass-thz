@@ -77,22 +77,22 @@ class TestLiveConnection:
         data = parse_sglobal(response.data)
         
         # These should always be present
-        assert "outside_temp" in data
-        assert "flow_temp" in data
-        assert "return_temp" in data
-        assert "dhw_temp" in data
+        assert "outsideTemp" in data
+        assert "flowTemp" in data
+        assert "returnTemp" in data
+        assert "dhwTemp" in data
         
         # Print values for manual verification
-        print(f"\n    Outside: {data.get('outside_temp')}°C")
-        print(f"    Flow: {data.get('flow_temp')}°C")
-        print(f"    Return: {data.get('return_temp')}°C")
-        print(f"    DHW: {data.get('dhw_temp')}°C")
+        print(f"\n    Outside: {data.get('outsideTemp')}°C")
+        print(f"    Flow: {data.get('flowTemp')}°C")
+        print(f"    Return: {data.get('returnTemp')}°C")
+        print(f"    DHW: {data.get('dhwTemp')}°C")
         
         # Sanity checks - temperatures should be in reasonable ranges
-        assert -40 <= data["outside_temp"] <= 50, "Outside temp out of range"
-        assert 0 <= data["flow_temp"] <= 80, "Flow temp out of range"
-        assert 0 <= data["return_temp"] <= 80, "Return temp out of range"
-        assert 0 <= data["dhw_temp"] <= 80, "DHW temp out of range"
+        assert -40 <= data["outsideTemp"] <= 50, "Outside temp out of range"
+        assert 0 <= data["flowTemp"] <= 80, "Flow temp out of range"
+        assert 0 <= data["returnTemp"] <= 80, "Return temp out of range"
+        assert 0 <= data["dhwTemp"] <= 80, "DHW temp out of range"
     
     def test_history_operating_hours(self, thz_connection):
         """Test reading operating hours."""
@@ -102,13 +102,13 @@ class TestLiveConnection:
         
         data = parse_history(response.data)
         
-        assert "compressor_heating_hours" in data
+        assert "compressorHeatingHours" in data
         
-        print(f"\n    Compressor heating hours: {data.get('compressor_heating_hours')}")
-        print(f"    Booster heating hours: {data.get('booster_heating_hours', 'N/A')}")
+        print(f"\n    Compressor heating hours: {data.get('compressorHeatingHours')}")
+        print(f"    Booster heating hours: {data.get('boosterHeatingHours', 'N/A')}")
         
         # Operating hours should be non-negative
-        assert data["compressor_heating_hours"] >= 0
+        assert data["compressorHeatingHours"] >= 0
     
     def test_time_read(self, thz_connection):
         """Test reading device time."""
@@ -144,10 +144,10 @@ class TestLiveConnection:
         
         data = parse_errors(response.data)
         
-        assert "num_faults" in data
-        print(f"\n    Number of faults: {data['num_faults']}")
+        assert "numberOfFaults" in data
+        print(f"\n    Number of faults: {data['numberOfFaults']}")
         
-        assert data["num_faults"] >= 0
+        assert data["numberOfFaults"] >= 0
     
     def test_shc1_heating_circuit(self, thz_connection):
         """Test reading heating circuit 1 data."""
@@ -202,8 +202,8 @@ class TestLiveDataValidation:
         
         data = parse_sglobal(response.data)
         
-        flow = data.get("flow_temp", 0)
-        ret = data.get("return_temp", 0)
+        flow = data.get("flowTemp", 0)
+        ret = data.get("returnTemp", 0)
         
         print(f"\n    Flow: {flow}°C, Return: {ret}°C")
         
@@ -220,7 +220,7 @@ class TestLiveDataValidation:
             response = thz_connection.send_command("FB")
             assert response.success
             data = parse_sglobal(response.data)
-            readings.append(data.get("outside_temp"))
+            readings.append(data.get("outsideTemp"))
             time.sleep(0.5)
         
         print(f"\n    Outside temp readings: {readings}")

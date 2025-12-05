@@ -16,7 +16,7 @@ from .const import (
     DEFAULT_BAUDRATE,
     DOMAIN,
 )
-from .thz_protocol import THZProtocol
+from .thz_protocol import THZConnection, parse_firmware
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -42,36 +42,39 @@ class THZConfigFlow(ConfigFlow, domain=DOMAIN):
 
         # Get available serial ports
         ports = await self.hass.async_add_executor_job(get_serial_ports)
-        
+
         if not ports:
-            ports = ["/dev/ttyUSB0", "/dev/ttyACM0", "COM1", "COM2", "COM3"]
+            ports = ["/dev/ttyUSB0", "/dev/ttyUSB1", "/dev/ttyACM0", "COM1", "COM2", "COM3"]
 
         if user_input is not None:
             serial_port = user_input[CONF_SERIAL_PORT]
             baudrate = user_input.get(CONF_BAUDRATE, DEFAULT_BAUDRATE)
 
-            # Try to connect, validate, and detect firmware
-            detected_firmware = None
+            # Try to connect and read firmware
+            firmware_version = None
             try:
-                protocol = THZProtocol(serial_port, baudrate)
-                
-                # Test connection and detect firmware automatically
-                def test_and_detect():
-                    protocol.open()
-                    fw = protocol.detect_firmware()
-                    protocol.close()
-                    return fw
-                
-                detected_firmware = await self.hass.async_add_executor_job(
-                    test_and_detect
+                def test_connection():
+                    conn = THZConnection(serial_port, baudrate)
+                    conn.connect()
+                    try:
+                        response = conn.read_register("FD")
+                        if response.success and response.data:
+                            fw_data = parse_firmware(response.data)
+                            return fw_data.get("version", "unknown")
+                        return None
+                    finally:
+                        conn.disconnect()
+
+                firmware_version = await self.hass.async_add_executor_job(
+                    test_connection
                 )
-                _LOGGER.info("Detected firmware: %s", detected_firmware)
-                
+                _LOGGER.info("Connected to heat pump, firmware: %s", firmware_version)
+
             except Exception as err:
                 _LOGGER.error("Connection test failed: %s", err)
                 errors["base"] = "cannot_connect"
 
-            if not errors and detected_firmware:
+            if not errors and firmware_version:
                 # Set unique ID based on serial port
                 await self.async_set_unique_id(serial_port)
                 self._abort_if_unique_id_configured()
@@ -84,7 +87,7 @@ class THZConfigFlow(ConfigFlow, domain=DOMAIN):
                     },
                 )
 
-        # Build schema with detected ports - firmware is auto-detected
+        # Build schema with detected ports
         data_schema = vol.Schema(
             {
                 vol.Required(CONF_SERIAL_PORT): vol.In(ports) if ports else str,

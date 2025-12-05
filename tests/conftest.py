@@ -1,7 +1,14 @@
 """
 Pytest configuration for THZ tests.
 """
+import sys
+from pathlib import Path
+
 import pytest
+
+# Add custom_components to path so we import from there
+ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(ROOT / "custom_components" / "hass_thz"))
 
 
 def pytest_addoption(parser):

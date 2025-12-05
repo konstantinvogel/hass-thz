@@ -1,17 +1,25 @@
 #!/usr/bin/env python3
 """
-Pytest unit tests for THZ protocol implementation.
+Comprehensive pytest unit tests for THZ protocol implementation.
 
-Run with: pytest tests/ -v
+Run with: pytest tests/test_protocol.py -v
 """
 import pytest
+from unittest.mock import Mock, patch, MagicMock
 from thz_protocol import (
+    # Enums and dataclasses
+    THZError,
+    THZResponse,
+    REGISTERS,
+    PARSERS,
+    # Core functions
     calculate_checksum,
     escape_data,
     unescape_data,
     build_command,
     parse_response,
     parse_temp,
+    # Parser functions
     parse_firmware,
     parse_sglobal,
     parse_shc1,
@@ -19,65 +27,157 @@ from thz_protocol import (
     parse_history,
     parse_time,
     parse_errors,
-    THZResponse,
-    THZError,
+    # Connection class
+    THZConnection,
 )
 
+
+# =============================================================================
+# THZError Enum Tests
+# =============================================================================
+
+class TestTHZError:
+    """Tests for THZError enum."""
+    
+    def test_error_values(self):
+        """Test that error codes have correct values."""
+        assert THZError.SUCCESS == 0x00
+        assert THZError.CRC_ERROR == 0x02
+        assert THZError.UNKNOWN_CMD == 0x03
+        assert THZError.UNKNOWN_REG == 0x04
+    
+    def test_error_is_int(self):
+        """Test that THZError is an IntEnum."""
+        assert isinstance(THZError.CRC_ERROR, int)
+        assert THZError.CRC_ERROR == 2
+
+
+# =============================================================================
+# THZResponse Dataclass Tests
+# =============================================================================
+
+class TestTHZResponse:
+    """Tests for THZResponse dataclass."""
+    
+    def test_success_response(self):
+        """Test creating a successful response."""
+        response = THZResponse(success=True, data="ABCD")
+        assert response.success is True
+        assert response.data == "ABCD"
+        assert response.error is None
+        assert response.error_message is None
+    
+    def test_error_response(self):
+        """Test creating an error response."""
+        response = THZResponse(
+            success=False,
+            error=THZError.CRC_ERROR,
+            error_message="CRC Error"
+        )
+        assert response.success is False
+        assert response.data is None
+        assert response.error == THZError.CRC_ERROR
+        assert response.error_message == "CRC Error"
+    
+    def test_default_values(self):
+        """Test default values."""
+        response = THZResponse(success=True)
+        assert response.data is None
+        assert response.error is None
+        assert response.error_message is None
+
+
+# =============================================================================
+# REGISTERS Dictionary Tests
+# =============================================================================
+
+class TestRegisters:
+    """Tests for REGISTERS dictionary."""
+    
+    def test_registers_exist(self):
+        """Test that expected registers are defined."""
+        expected = ["FD", "FB", "F3", "F4", "FC", "17", "0A17", "09", "D1"]
+        for reg in expected:
+            assert reg in REGISTERS, f"Register {reg} not found"
+    
+    def test_registers_have_required_keys(self):
+        """Test that each register has name and parse keys."""
+        for reg, info in REGISTERS.items():
+            assert "name" in info, f"Register {reg} missing 'name'"
+            assert "parse" in info, f"Register {reg} missing 'parse'"
+    
+    def test_parsers_exist_for_registers(self):
+        """Test that parsers exist for all non-raw registers."""
+        for reg, info in REGISTERS.items():
+            parse_type = info["parse"]
+            if parse_type != "raw":
+                assert parse_type in PARSERS, f"Parser '{parse_type}' not found for register {reg}"
+
+
+# =============================================================================
+# Checksum Tests
+# =============================================================================
 
 class TestChecksum:
     """Tests for checksum calculation."""
     
     def test_checksum_fd(self):
         """Test checksum for FD (firmware) command."""
-        # FD command should have checksum 0xFE
         assert calculate_checksum("FD") == 0xFE
     
     def test_checksum_fb(self):
         """Test checksum for FB (sGlobal) command."""
-        # 01 + 00 + FB = 0xFC
         assert calculate_checksum("FB") == 0xFC
     
     def test_checksum_09(self):
         """Test checksum for 09 (history) command."""
-        # 01 + 00 + 09 = 0x0A
         assert calculate_checksum("09") == 0x0A
     
     def test_checksum_f3(self):
         """Test checksum for F3 (sDHW) command."""
-        # 01 + 00 + F3 = 0xF4
         assert calculate_checksum("F3") == 0xF4
     
     def test_checksum_f4(self):
         """Test checksum for F4 (sHC1) command."""
-        # 01 + 00 + F4 = 0xF5
         assert calculate_checksum("F4") == 0xF5
     
     def test_checksum_fc(self):
         """Test checksum for FC (sTime) command."""
-        # 01 + 00 + FC = 0xFD
         assert calculate_checksum("FC") == 0xFD
     
     def test_checksum_d1(self):
         """Test checksum for D1 (sLast) command."""
-        # 01 + 00 + D1 = 0xD2
         assert calculate_checksum("D1") == 0xD2
     
     def test_checksum_17(self):
         """Test checksum for 17 (p01-p12) command."""
-        # 01 + 00 + 17 = 0x18
         assert calculate_checksum("17") == 0x18
     
     def test_checksum_0a17(self):
         """Test checksum for 0A17 (p01-p12 new) command."""
-        # 01 + 00 + 0A + 17 = 0x22
         assert calculate_checksum("0A17") == 0x22
     
     def test_checksum_overflow(self):
         """Test that checksum wraps at 256."""
-        # Create a command that would overflow
-        result = calculate_checksum("FFFF")  # 01 + 00 + FF + FF = 0x1FF -> 0xFF
+        result = calculate_checksum("FFFF")
         assert 0 <= result <= 255
+    
+    def test_checksum_empty_command(self):
+        """Test checksum with empty command."""
+        # 01 + 00 = 01, should work
+        result = calculate_checksum("")
+        assert result == 0x01
+    
+    def test_checksum_long_command(self):
+        """Test checksum with longer command."""
+        result = calculate_checksum("AABBCCDD")
+        expected = (0x01 + 0x00 + 0xAA + 0xBB + 0xCC + 0xDD) % 256
+        assert result == expected
 
+
+# =============================================================================
+# Escape Sequence Tests
+# =============================================================================
 
 class TestEscaping:
     """Tests for escape sequence handling."""
@@ -94,9 +194,23 @@ class TestEscaping:
         """Test that non-special bytes pass through unchanged."""
         assert escape_data("AABBCCDD") == "AABBCCDD"
     
-    def test_escape_multiple(self):
+    def test_escape_multiple_10(self):
+        """Test escaping multiple 0x10 bytes."""
+        assert escape_data("101010") == "101010101010"
+    
+    def test_escape_multiple_2b(self):
+        """Test escaping multiple 0x2B bytes."""
+        assert escape_data("2B2B") == "2B182B18"
+    
+    def test_escape_mixed(self):
         """Test escaping with multiple special bytes."""
         assert escape_data("10FF2B") == "1010FF2B18"
+    
+    def test_escape_at_boundaries(self):
+        """Test escaping at string boundaries."""
+        assert escape_data("10") == "1010"
+        assert escape_data("AA10") == "AA1010"
+        assert escape_data("10AA") == "1010AA"
     
     def test_unescape_10(self):
         """Test unescaping 0x10 0x10 -> 0x10."""
@@ -110,50 +224,83 @@ class TestEscaping:
         """Test unescaping with multiple escape sequences."""
         assert unescape_data("1010FF2B18") == "10FF2B"
     
+    def test_unescape_no_change(self):
+        """Test that non-escaped data passes through unchanged."""
+        assert unescape_data("AABBCCDD") == "AABBCCDD"
+    
     def test_roundtrip(self):
-        """Test that escape/unescape is reversible for normal data."""
+        """Test that escape/unescape is reversible for data with special bytes."""
         original = "10FF2BAA"
         escaped = escape_data(original)
         unescaped = unescape_data(escaped)
         assert unescaped == original
+    
+    def test_roundtrip_no_special(self):
+        """Test roundtrip with no special bytes."""
+        original = "AABBCCDD"
+        escaped = escape_data(original)
+        unescaped = unescape_data(escaped)
+        assert unescaped == original
 
+
+# =============================================================================
+# Build Command Tests
+# =============================================================================
 
 class TestBuildCommand:
     """Tests for command building."""
     
     def test_build_fd(self):
         """Test building FD command."""
-        # FD with checksum FE, no escaping needed
         cmd = build_command("FD")
         assert cmd == "0100FEFD1003"
     
     def test_build_fb(self):
         """Test building FB command."""
-        # FB with checksum FC, no escaping needed
         cmd = build_command("FB")
         assert cmd == "0100FCFB1003"
     
     def test_build_09(self):
         """Test building 09 command."""
-        # 09 with checksum 0A, needs escaping (0A contains no special chars)
         cmd = build_command("09")
         assert cmd == "01000A091003"
     
-    def test_build_with_escape(self):
-        """Test building command that requires escaping."""
-        # If checksum would be 0x10, it should be escaped
+    def test_build_with_escape_checksum(self):
+        """Test building command where checksum requires escaping."""
         # Register "0F" -> checksum = 01 + 00 + 0F = 0x10 (needs escaping!)
         cmd = build_command("0F")
         assert "1010" in cmd  # Should contain escaped 0x10
+        assert cmd == "010010100F1003"
+    
+    def test_build_with_escape_register(self):
+        """Test building command where register contains escapable byte."""
+        # Register with 0x10 in it
+        cmd = build_command("1000")
+        assert "1010" in cmd
+    
+    def test_build_command_structure(self):
+        """Test that command has correct structure."""
+        cmd = build_command("FD")
+        assert cmd.startswith("0100")  # Header
+        assert cmd.endswith("1003")    # Footer
+    
+    def test_build_long_register(self):
+        """Test building command with 4-char register."""
+        cmd = build_command("0A17")
+        assert cmd.startswith("0100")
+        assert cmd.endswith("1003")
+        assert "0A17" in cmd or "0A17" in unescape_data(cmd[4:-4])
 
+
+# =============================================================================
+# Parse Response Tests
+# =============================================================================
 
 class TestParseResponse:
     """Tests for response parsing."""
     
     def test_parse_success(self):
         """Test parsing successful response."""
-        # Response format: 0100 + checksum(2) + data + 1003
-        # So 0100 FE FD070200 1003 -> data is "FD070200"
         response = parse_response("0100FEFD0702001003")
         assert response.success is True
         assert response.data == "FD070200"
@@ -163,18 +310,21 @@ class TestParseResponse:
         response = parse_response("0102001003")
         assert response.success is False
         assert response.error == THZError.CRC_ERROR
+        assert "CRC" in response.error_message
     
     def test_parse_unknown_cmd(self):
         """Test parsing unknown command response."""
         response = parse_response("0103001003")
         assert response.success is False
         assert response.error == THZError.UNKNOWN_CMD
+        assert "command" in response.error_message.lower()
     
     def test_parse_unknown_reg(self):
         """Test parsing unknown register response."""
         response = parse_response("0104001003")
         assert response.success is False
         assert response.error == THZError.UNKNOWN_REG
+        assert "register" in response.error_message.lower()
     
     def test_parse_too_short(self):
         """Test parsing response that is too short."""
@@ -182,27 +332,55 @@ class TestParseResponse:
         assert response.success is False
         assert "too short" in response.error_message.lower()
     
+    def test_parse_empty(self):
+        """Test parsing empty response."""
+        response = parse_response("")
+        assert response.success is False
+    
+    def test_parse_none(self):
+        """Test parsing None response."""
+        response = parse_response(None)
+        assert response.success is False
+    
+    def test_parse_unknown_header(self):
+        """Test parsing response with unknown header."""
+        response = parse_response("0199AABBCC1003")
+        assert response.success is False
+        assert "Unknown header" in response.error_message
+    
     def test_parse_with_escape_sequences(self):
         """Test parsing response containing escape sequences."""
-        # Response with 1010 (escaped 10) should be unescaped
         response = parse_response("0100AA10101003")
         assert response.success is True
-        # After unescaping 1010 -> 10
         assert "10" in response.data
+    
+    def test_parse_lowercase(self):
+        """Test parsing lowercase hex."""
+        response = parse_response("0100fefd0702001003")
+        assert response.success is True
+    
+    def test_parse_extracts_data_correctly(self):
+        """Test that data extraction removes header, checksum, and footer."""
+        # 0100 (header) + FE (checksum) + AABBCCDD (data) + 1003 (footer)
+        response = parse_response("0100FEAABBCCDD1003")
+        assert response.success is True
+        assert response.data == "AABBCCDD"
 
+
+# =============================================================================
+# Parse Temperature Tests
+# =============================================================================
 
 class TestParseTemp:
     """Tests for temperature parsing."""
     
     def test_parse_positive_temp(self):
         """Test parsing positive temperature."""
-        # 0x00C8 = 200 -> 20.0°C
-        assert parse_temp("00C8") == 20.0
+        assert parse_temp("00C8") == 20.0  # 200 / 10
     
     def test_parse_negative_temp(self):
         """Test parsing negative temperature."""
-        # 0xFFEC = 65516 -> -20 (signed) -> -2.0°C
-        assert parse_temp("FFEC") == -2.0
+        assert parse_temp("FFEC") == -2.0  # -20 / 10
     
     def test_parse_zero_temp(self):
         """Test parsing zero temperature."""
@@ -210,95 +388,250 @@ class TestParseTemp:
     
     def test_parse_unsigned(self):
         """Test parsing as unsigned value."""
-        # 0xFFEC = 65516 as unsigned -> 6551.6
         assert parse_temp("FFEC", signed=False) == 6551.6
     
     def test_parse_decimal(self):
         """Test temperature with decimal places."""
-        # 0x0043 = 67 -> 6.7°C
-        assert parse_temp("0043") == 6.7
+        assert parse_temp("0043") == 6.7  # 67 / 10
+    
+    def test_parse_large_positive(self):
+        """Test large positive temperature."""
+        assert parse_temp("0320") == 80.0  # 800 / 10
+    
+    def test_parse_large_negative(self):
+        """Test large negative temperature."""
+        assert parse_temp("FD8F") == -62.5  # -625 / 10 (approx -60 for no sensor)
+    
+    def test_parse_boundary_signed(self):
+        """Test boundary between positive and negative."""
+        assert parse_temp("7FFF") == 3276.7  # Max positive
+        assert parse_temp("8000") == -3276.8  # Min negative (signed)
 
+
+# =============================================================================
+# Parse Firmware Tests
+# =============================================================================
 
 class TestParseFirmware:
     """Tests for firmware parsing."""
     
     def test_parse_firmware_702(self):
         """Test parsing firmware version 7.02."""
-        # Response data: FD + 0702 (702 decimal = 7.02)
-        result = parse_firmware("FD02BC")  # 0x02BC = 700
-        # Wait, let me use actual value: 702 = 0x02BE
-        result = parse_firmware("FD02BE")
+        result = parse_firmware("FD02BE")  # 0x02BE = 702
         assert result["version"] == "7.02"
         assert result["version_raw"] == 702
+    
+    def test_parse_firmware_206(self):
+        """Test parsing firmware version 2.06."""
+        result = parse_firmware("FD00CE")  # 0x00CE = 206
+        assert result["version"] == "2.06"
+        assert result["version_raw"] == 206
+    
+    def test_parse_firmware_100(self):
+        """Test parsing firmware version 1.00."""
+        result = parse_firmware("FD0064")  # 0x0064 = 100
+        assert result["version"] == "1.00"
+        assert result["version_raw"] == 100
     
     def test_parse_firmware_short(self):
         """Test parsing with insufficient data."""
         result = parse_firmware("FD")
         assert "version" not in result
+    
+    def test_parse_firmware_empty(self):
+        """Test parsing empty data."""
+        result = parse_firmware("")
+        assert "version" not in result
+    
+    def test_parse_firmware_with_extra_data(self):
+        """Test parsing with extra data."""
+        result = parse_firmware("FD02BEAABBCCDD")
+        assert result["version"] == "7.02"
 
+
+# =============================================================================
+# Parse sGlobal Tests
+# =============================================================================
 
 class TestParseSglobal:
     """Tests for sGlobal parsing."""
     
     def test_parse_sglobal_basic(self):
         """Test parsing basic sGlobal data."""
-        # FB + collector(4) + outside(4) + flow(4) + return(4) + ...
-        # All temps at 20.0°C = 0x00C8
-        data = "FB" + "00C8" * 10  # 10 temperature values
+        # FB + 10 temperature values at 20.0°C = 0x00C8
+        data = "FB" + "00C8" * 10
         result = parse_sglobal(data)
         
-        assert result["collector_temp"] == 20.0
-        assert result["outside_temp"] == 20.0
-        assert result["flow_temp"] == 20.0
-        assert result["return_temp"] == 20.0
+        assert result["collectorTemp"] == 20.0
+        assert result["outsideTemp"] == 20.0
+        assert result["flowTemp"] == 20.0
+        assert result["returnTemp"] == 20.0
+        assert result["hotGasTemp"] == 20.0
+        assert result["dhwTemp"] == 20.0
+        assert result["flowTempHC2"] == 20.0
+        assert result["insideTemp"] == 20.0
+        assert result["insideTempValid"] is True
     
     def test_parse_sglobal_negative_outside(self):
         """Test parsing negative outside temperature."""
-        # Outside temp -5.0°C = 0xFFCE
-        data = "FB" + "0000" + "FFCE" + "00C8" * 8
+        data = "FB" + "0000" + "FFCE" + "00C8" * 8  # -5.0°C outside
         result = parse_sglobal(data)
-        assert result["outside_temp"] == -5.0
+        assert result["outsideTemp"] == -5.0
     
     def test_parse_sglobal_invalid_inside(self):
         """Test detecting invalid inside temperature (no sensor)."""
-        # Inside temp -60.0°C = 0xFDA8 (should be marked invalid)
+        # Inside temp -60.0°C = 0xFDA8
         data = "FB" + "0000" * 7 + "FDA8" + "0000" * 2
         result = parse_sglobal(data)
-        assert result["inside_temp"] == -60.0
-        assert result["inside_temp_valid"] is False
+        assert result["insideTemp"] == -60.0
+        assert result["insideTempValid"] is False
     
     def test_parse_sglobal_valid_inside(self):
         """Test valid inside temperature."""
-        # Inside temp 21.5°C = 0x00D7
-        data = "FB" + "0000" * 7 + "00D7" + "0000" * 2
+        data = "FB" + "0000" * 7 + "00D7" + "0000" * 2  # 21.5°C
         result = parse_sglobal(data)
-        assert result["inside_temp"] == 21.5
-        assert result["inside_temp_valid"] is True
+        assert result["insideTemp"] == 21.5
+        assert result["insideTempValid"] is True
+    
+    def test_parse_sglobal_short_data(self):
+        """Test parsing with minimal data."""
+        data = "FB" + "0043"  # Only collector temp
+        result = parse_sglobal(data)
+        assert result["collectorTemp"] == 6.7
+        assert "outsideTemp" not in result
+    
+    def test_parse_sglobal_empty(self):
+        """Test parsing with only command echo."""
+        result = parse_sglobal("FB")
+        assert "collectorTemp" not in result
+    
+    def test_parse_sglobal_fan_speeds(self):
+        """Test parsing fan speeds."""
+        # Need 66+ hex chars after FB to get fan speeds
+        data = "FB" + "0000" * 33  # 66 chars of zeros
+        result = parse_sglobal(data)
+        assert "outputVentilatorSpeed" in result or "inputVentilatorSpeed" in result
 
+
+# =============================================================================
+# Parse sHC1 Tests
+# =============================================================================
+
+class TestParseShc1:
+    """Tests for sHC1 parsing."""
+    
+    def test_parse_shc1_basic(self):
+        """Test parsing heating circuit 1 data."""
+        # F4 + flowTempSet(4) + roomTempSet(4) + roomTemp(4)
+        data = "F4" + "015E" + "00D2" + "00CD"  # 35.0, 21.0, 20.5
+        result = parse_shc1(data)
+        
+        assert result["flowTempSet"] == 35.0
+        assert result["roomTempSet"] == 21.0
+        assert result["roomTemp"] == 20.5
+    
+    def test_parse_shc1_with_cycles(self):
+        """Test parsing with on/off cycles."""
+        # After skipping "F4" (2 chars), need d[76:80] for cycles
+        # So d needs 80 chars = 76 chars padding + 4 chars cycles
+        # Total: "F4" (2) + 76 chars + 4 chars = 82 chars
+        data = "F4" + "0000" * 19 + "0017"  # 2 + 76 + 4 = 82 chars, cycles=23
+        result = parse_shc1(data)
+        assert result["onOffCycles"] == 23
+    
+    def test_parse_shc1_short(self):
+        """Test parsing with minimal data."""
+        data = "F4" + "015E"  # Only flowTempSet
+        result = parse_shc1(data)
+        assert result["flowTempSet"] == 35.0
+        assert "roomTempSet" not in result
+    
+    def test_parse_shc1_empty(self):
+        """Test parsing with only command echo."""
+        result = parse_shc1("F4")
+        assert "flowTempSet" not in result
+
+
+# =============================================================================
+# Parse p01 Tests
+# =============================================================================
+
+class TestParseP01:
+    """Tests for p01-p12 parsing."""
+    
+    def test_parse_p01_basic(self):
+        """Test parsing setpoints."""
+        # 17 + p01(4) + p02(4) + p03(4) + p04(4)
+        data = "17" + "00D2" + "00B4" + "0000" + "01E0"  # 21.0, 18.0, 0, 48.0
+        result = parse_p01(data)
+        
+        assert result["p01RoomTempDay"] == 21.0
+        assert result["p02RoomTempNight"] == 18.0
+        assert result["p04DHWsetTempDay"] == 48.0
+    
+    def test_parse_p01_with_fan_stages(self):
+        """Test parsing fan stages."""
+        # Need 30 chars for fan stages at positions 24-26 and 26-28
+        data = "17" + "0000" * 6 + "02" + "01" + "0000"  # fan day=2, night=1
+        result = parse_p01(data)
+        assert result["p07FanStageDay"] == 2
+        assert result["p08FanStageNight"] == 1
+    
+    def test_parse_p01_short(self):
+        """Test parsing with minimal data."""
+        data = "17" + "00D2"  # Only p01
+        result = parse_p01(data)
+        assert result["p01RoomTempDay"] == 21.0
+        assert "p02RoomTempNight" not in result
+
+
+# =============================================================================
+# Parse History Tests
+# =============================================================================
 
 class TestParseHistory:
     """Tests for history parsing."""
     
     def test_parse_history_basic(self):
         """Test parsing operating hours."""
-        # 09 + compressor_heating(4) + compressor_cooling(4) + ...
-        # 1000 hours = 0x03E8
+        # 09 + 5 values at 1000 hours = 0x03E8
         data = "09" + "03E8" * 5
         result = parse_history(data)
         
-        assert result["compressor_heating_hours"] == 1000
-        assert result["compressor_cooling_hours"] == 1000
+        assert result["compressorHeatingHours"] == 1000
+        assert result["compressorCoolingHours"] == 1000
+        assert result["compressorDHWHours"] == 1000
+        assert result["boosterDHWHours"] == 1000
+        assert result["boosterHeatingHours"] == 1000
     
     def test_parse_history_real_data(self):
         """Test parsing with real-ish values."""
-        # compressor_heating: 3963 = 0x0F7B
-        # booster_heating: 48 = 0x0030
+        # compressorHeatingHours: 3963 = 0x0F7B, boosterHeatingHours: 48 = 0x0030
         data = "09" + "0F7B" + "0000" + "0000" + "0000" + "0030"
         result = parse_history(data)
         
-        assert result["compressor_heating_hours"] == 3963
-        assert result["booster_heating_hours"] == 48
+        assert result["compressorHeatingHours"] == 3963
+        assert result["boosterHeatingHours"] == 48
+    
+    def test_parse_history_zero(self):
+        """Test parsing all zeros."""
+        data = "09" + "0000" * 5
+        result = parse_history(data)
+        
+        assert result["compressorHeatingHours"] == 0
+        assert result["boosterHeatingHours"] == 0
+    
+    def test_parse_history_short(self):
+        """Test parsing with minimal data."""
+        data = "09" + "0F7B"  # Only compressorHeatingHours
+        result = parse_history(data)
+        assert result["compressorHeatingHours"] == 3963
+        assert "compressorCoolingHours" not in result
 
+
+# =============================================================================
+# Parse Time Tests
+# =============================================================================
 
 class TestParseTime:
     """Tests for time parsing."""
@@ -306,7 +639,6 @@ class TestParseTime:
     def test_parse_time_basic(self):
         """Test parsing date/time based on real device response."""
         # Real response: FC04142417190C05
-        # FC=echo, 04=Thu, 14=20h, 24=36min, 17=23sec?, 19=2025, 0C=Dec, 05=5th
         data = "FC04142417190C05"
         result = parse_time(data)
         
@@ -317,61 +649,229 @@ class TestParseTime:
         assert result["year"] == 2025  # 0x19 = 25 + 2000
         assert result["month"] == 12   # 0x0C = 12
         assert result["day"] == 5      # 0x05 = 5
-
-
-class TestParseShc1:
-    """Tests for sHC1 parsing."""
     
-    def test_parse_shc1_basic(self):
-        """Test parsing heating circuit 1 data."""
-        # F4 + flow_temp_set(4) + room_temp_set(4) + room_temp(4) + ...
-        # 35.0°C = 0x015E, 21.0°C = 0x00D2, 20.5°C = 0x00CD
-        data = "F4" + "015E" + "00D2" + "00CD"
-        result = parse_shc1(data)
-        
-        assert result["flow_temp_set"] == 35.0
-        assert result["room_temp_set"] == 21.0
-        assert result["room_temp"] == 20.5
-
-
-class TestParseP01:
-    """Tests for p01-p12 parsing."""
+    def test_parse_time_monday(self):
+        """Test parsing Monday."""
+        data = "FC01000000190101"  # Monday, 00:00:00, 2025-01-01
+        result = parse_time(data)
+        assert result["weekday"] == 1
     
-    def test_parse_p01_basic(self):
-        """Test parsing setpoints."""
-        # 17 + p01(4) + p02(4) + p03(4) + p04(4) + ...
-        # Room day 21.0°C = 0x00D2, night 18.0°C = 0x00B4
-        # p03 placeholder, DHW 48.0°C = 0x01E0
-        data = "17" + "00D2" + "00B4" + "0000" + "01E0" + "0000" * 6 + "02" + "01"
-        result = parse_p01(data)
-        
-        assert result["p01_room_temp_day"] == 21.0
-        assert result["p02_room_temp_night"] == 18.0
-        assert result["p04_dhw_temp_day"] == 48.0
+    def test_parse_time_sunday(self):
+        """Test parsing Sunday."""
+        data = "FC07173B3B181231"  # Sunday, 23:59:59, 2024-12-31
+        result = parse_time(data)
+        assert result["weekday"] == 7
+        assert result["hour"] == 23
+        assert result["minute"] == 59
+        assert result["second"] == 59
+    
+    def test_parse_time_year_2020(self):
+        """Test parsing year 2020."""
+        data = "FC0100000014010F"  # Year 0x14 = 20 -> 2020
+        result = parse_time(data)
+        assert result["year"] == 2020
+    
+    def test_parse_time_short(self):
+        """Test parsing with minimal data."""
+        data = "FC04"  # Only weekday
+        result = parse_time(data)
+        assert result["weekday"] == 4
+        assert "hour" not in result
 
+
+# =============================================================================
+# Parse Errors Tests
+# =============================================================================
 
 class TestParseErrors:
     """Tests for error parsing."""
     
     def test_parse_errors_none(self):
         """Test parsing with no errors."""
-        data = "D1" + "00"
+        data = "D100"
         result = parse_errors(data)
-        assert result["num_faults"] == 0
+        assert result["numberOfFaults"] == 0
     
     def test_parse_errors_some(self):
         """Test parsing with some errors."""
-        data = "D1" + "03"
+        data = "D103"
         result = parse_errors(data)
-        assert result["num_faults"] == 3
+        assert result["numberOfFaults"] == 3
+    
+    def test_parse_errors_max(self):
+        """Test parsing max errors (255)."""
+        data = "D1FF"
+        result = parse_errors(data)
+        assert result["numberOfFaults"] == 255
+    
+    def test_parse_errors_short(self):
+        """Test parsing with insufficient data."""
+        data = "D1"
+        result = parse_errors(data)
+        assert "numberOfFaults" not in result
 
+
+# =============================================================================
+# PARSERS Registry Tests
+# =============================================================================
+
+class TestParsersRegistry:
+    """Tests for PARSERS registry."""
+    
+    def test_all_parsers_callable(self):
+        """Test that all parsers are callable functions."""
+        for name, parser in PARSERS.items():
+            assert callable(parser), f"Parser '{name}' is not callable"
+    
+    def test_parsers_return_dict(self):
+        """Test that all parsers return dictionaries."""
+        test_data = {
+            "firmware": "FD02BE",
+            "sglobal": "FB" + "00C8" * 10,
+            "shc1": "F4" + "0000" * 10,
+            "p01": "17" + "0000" * 10,
+            "history": "09" + "0000" * 5,
+            "time": "FC04142417190C05",
+            "errors": "D100",
+        }
+        for name, parser in PARSERS.items():
+            data = test_data.get(name, name.upper() + "0000")
+            result = parser(data)
+            assert isinstance(result, dict), f"Parser '{name}' did not return dict"
+    
+    def test_parsers_handle_empty_gracefully(self):
+        """Test that parsers handle empty data without crashing."""
+        for name, parser in PARSERS.items():
+            result = parser("")
+            assert isinstance(result, dict)
+    
+    def test_parsers_handle_invalid_gracefully(self):
+        """Test that parsers handle invalid data without crashing."""
+        for name, parser in PARSERS.items():
+            result = parser("ZZZZ")  # Invalid hex
+            assert isinstance(result, dict)
+            # Should have parse_error or be empty
+            assert "parse_error" in result or len(result) == 0
+
+
+# =============================================================================
+# THZConnection Tests (Mocked)
+# =============================================================================
+
+class TestTHZConnection:
+    """Tests for THZConnection class with mocked serial."""
+    
+    def test_init(self):
+        """Test connection initialization."""
+        conn = THZConnection("/dev/ttyUSB0", baudrate=57600)
+        assert conn.port == "/dev/ttyUSB0"
+        assert conn.baudrate == 57600
+        assert conn.timeout == 3.0
+        assert conn.write_timeout == 2.0
+        assert conn._serial is None
+    
+    def test_init_defaults(self):
+        """Test connection initialization with defaults."""
+        conn = THZConnection("/dev/ttyUSB1")
+        assert conn.baudrate == 115200
+    
+    def test_is_connected_false(self):
+        """Test is_connected when not connected."""
+        conn = THZConnection("/dev/ttyUSB0")
+        assert conn.is_connected() is False
+    
+    @patch('thz_protocol.serial.Serial')
+    def test_connect(self, mock_serial_class):
+        """Test connection establishment."""
+        mock_serial = MagicMock()
+        mock_serial_class.return_value = mock_serial
+        
+        conn = THZConnection("/dev/ttyUSB0")
+        conn.connect()
+        
+        mock_serial_class.assert_called_once()
+        mock_serial.reset_input_buffer.assert_called()
+        mock_serial.reset_output_buffer.assert_called()
+    
+    @patch('thz_protocol.serial.Serial')
+    def test_disconnect(self, mock_serial_class):
+        """Test disconnection."""
+        mock_serial = MagicMock()
+        mock_serial.is_open = True
+        mock_serial_class.return_value = mock_serial
+        
+        conn = THZConnection("/dev/ttyUSB0")
+        conn.connect()
+        conn.disconnect()
+        
+        mock_serial.close.assert_called_once()
+        assert conn._serial is None
+    
+    @patch('thz_protocol.serial.Serial')
+    def test_is_connected_true(self, mock_serial_class):
+        """Test is_connected when connected."""
+        mock_serial = MagicMock()
+        mock_serial.is_open = True
+        mock_serial_class.return_value = mock_serial
+        
+        conn = THZConnection("/dev/ttyUSB0")
+        conn.connect()
+        
+        assert conn.is_connected() is True
+    
+    @patch('thz_protocol.serial.Serial')
+    def test_context_manager(self, mock_serial_class):
+        """Test context manager usage."""
+        mock_serial = MagicMock()
+        mock_serial.is_open = True
+        mock_serial_class.return_value = mock_serial
+        
+        with THZConnection("/dev/ttyUSB0") as conn:
+            assert conn.is_connected()
+        
+        mock_serial.close.assert_called()
+    
+    def test_send_command_not_connected(self):
+        """Test send_command when not connected."""
+        conn = THZConnection("/dev/ttyUSB0")
+        response = conn.send_command("FD")
+        
+        assert response.success is False
+        assert "Not connected" in response.error_message
+    
+    @patch('thz_protocol.serial.Serial')
+    @patch('thz_protocol.time.sleep')
+    def test_send_command_step0_fail(self, mock_sleep, mock_serial_class):
+        """Test send_command when step 0 fails."""
+        mock_serial = MagicMock()
+        mock_serial.in_waiting = 1
+        mock_serial.read.return_value = b'\xFF'  # Wrong response
+        mock_serial_class.return_value = mock_serial
+        
+        conn = THZConnection("/dev/ttyUSB0")
+        conn.connect()
+        response = conn.send_command("FD")
+        
+        assert response.success is False
+        assert "Step 0 failed" in response.error_message
+    
+    def test_read_register_not_connected(self):
+        """Test read_register when not connected."""
+        conn = THZConnection("/dev/ttyUSB0")
+        result = conn.read_register("FD")
+        
+        assert "error" in result
+
+
+# =============================================================================
+# Integration Tests
+# =============================================================================
 
 class TestIntegration:
     """Integration tests for the protocol."""
     
     def test_full_command_response_cycle(self):
         """Test building command and parsing response."""
-        # Build FD command
         cmd = build_command("FD")
         assert cmd.startswith("0100")
         assert cmd.endswith("1003")
@@ -384,20 +884,32 @@ class TestIntegration:
         firmware = parse_firmware(response.data)
         assert firmware["version"] == "7.02"
     
-    def test_command_with_real_response_data(self):
+    def test_command_with_real_sglobal_data(self):
         """Test with actual response data from device."""
-        # Real response from FB register (sGlobal)
-        # outside_temp: 6.7°C, flow_temp: 29.8°C, return_temp: 28.0°C, dhw_temp: 46.0°C
+        # Real-ish response from FB register
         real_data = "FBFDA80043012A0118024001CC"
-        # FDA8 = collector (probably invalid)
-        # 0043 = 67 = 6.7°C outside
-        # 012A = 298 = 29.8°C flow
-        # 0118 = 280 = 28.0°C return
-        # 0240 = 576 = 57.6°C hot_gas (seems high)
-        # 01CC = 460 = 46.0°C DHW
-        
         result = parse_sglobal(real_data)
-        assert result["outside_temp"] == 6.7
-        assert result["flow_temp"] == 29.8
-        assert result["return_temp"] == 28.0
-        # Note: collector shows -60.0 which is the "no sensor" value
+        
+        assert result["outsideTemp"] == 6.7
+        assert result["flowTemp"] == 29.8
+        assert result["returnTemp"] == 28.0
+    
+    def test_all_register_commands_build(self):
+        """Test that all register commands can be built."""
+        for reg in REGISTERS:
+            cmd = build_command(reg)
+            assert cmd.startswith("0100")
+            assert cmd.endswith("1003")
+            assert len(cmd) >= 12  # Minimum: 0100 + XX + reg(2) + 1003
+    
+    def test_error_responses_all_types(self):
+        """Test all error response types."""
+        errors = [
+            ("0102001003", THZError.CRC_ERROR),
+            ("0103001003", THZError.UNKNOWN_CMD),
+            ("0104001003", THZError.UNKNOWN_REG),
+        ]
+        for data, expected_error in errors:
+            response = parse_response(data)
+            assert response.success is False
+            assert response.error == expected_error

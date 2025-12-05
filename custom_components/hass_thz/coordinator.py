@@ -1,10 +1,8 @@
 """DataUpdateCoordinator for THZ Heat Pump."""
 from __future__ import annotations
 
-import json
 import logging
-import os
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -17,7 +15,12 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
 )
-from .thz_protocol import THZProtocol, THZProtocolError
+from .thz_protocol import (
+    THZConnection,
+    REGISTERS,
+    PARSERS,
+    parse_firmware,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -30,7 +33,7 @@ class THZDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         """Initialize the coordinator."""
         self.entry = entry
-        self._protocol: THZProtocol | None = None
+        self._connection: THZConnection | None = None
         
         # Get configuration
         self._port = entry.data[CONF_SERIAL_PORT]
@@ -38,11 +41,6 @@ class THZDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         
         # Firmware info (will be populated on first update)
         self.firmware_version: str | None = None
-        self.firmware_date: str | None = None
-        
-        # Backup tracking
-        self._backup_created = False
-        self._backup_path: str | None = None
         
         super().__init__(
             hass,
@@ -52,129 +50,84 @@ class THZDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
 
     @property
-    def protocol(self) -> THZProtocol:
-        """Get or create the protocol instance."""
-        if self._protocol is None:
-            self._protocol = THZProtocol(
-                self._port,
-                self._baudrate,
-                firmware="auto"
-            )
-        return self._protocol
+    def connection(self) -> THZConnection:
+        """Get or create the connection instance."""
+        if self._connection is None:
+            self._connection = THZConnection(self._port, self._baudrate)
+        return self._connection
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch data from the heat pump."""
         try:
-            # Run the blocking I/O in executor
-            data = await self.hass.async_add_executor_job(
-                self._fetch_data
-            )
+            data = await self.hass.async_add_executor_job(self._fetch_data)
             return data
-        except THZProtocolError as err:
-            raise UpdateFailed(f"Error communicating with heat pump: {err}") from err
         except Exception as err:
-            _LOGGER.exception("Unexpected error fetching data")
-            raise UpdateFailed(f"Unexpected error: {err}") from err
+            _LOGGER.exception("Error fetching data from heat pump")
+            raise UpdateFailed(f"Error communicating with heat pump: {err}") from err
 
     def _fetch_data(self) -> dict[str, Any]:
         """Fetch data from the heat pump (blocking)."""
-        protocol = self.protocol
-        protocol.open()
+        conn = self.connection
+        
+        if not conn.is_connected():
+            conn.connect()
+        
+        data: dict[str, Any] = {}
         
         try:
-            # Detect firmware on first run
+            # Read firmware on first run
             if self.firmware_version is None:
-                try:
-                    fw_info = protocol.get_firmware_info()
-                    if "version" in fw_info:
-                        version = fw_info["version"]
-                        major = int(version) // 100 if isinstance(version, (int, float)) else 0
-                        minor = int(version) % 100 if isinstance(version, (int, float)) else 0
-                        self.firmware_version = f"{major}.{minor:02d}"
-                        _LOGGER.info("Heat pump firmware: %s", self.firmware_version)
-                        
-                        # Build date string
-                        if all(k in fw_info for k in ["date_day", "date_month", "date_year"]):
-                            self.firmware_date = (
-                                f"{int(fw_info['date_day']):02d}."
-                                f"{int(fw_info['date_month']):02d}."
-                                f"{int(fw_info['date_year'])}"
-                            )
-                except THZProtocolError as err:
-                    _LOGGER.warning("Failed to read firmware info: %s", err)
+                response = conn.read_register("FD")
+                if response.success and response.data:
+                    fw_data = parse_firmware(response.data)
+                    self.firmware_version = fw_data.get("version", "unknown")
+                    _LOGGER.info("Heat pump firmware: %s", self.firmware_version)
+                else:
                     self.firmware_version = "unknown"
             
-            # Read all sensor data
-            data = protocol.get_all_sensor_data()
+            # Read main registers
+            registers_to_read = ["FB", "F4", "09", "D1"]  # sGlobal, sHC1, sHistory, sLast
             
-            # Create backup on first successful read
-            if not self._backup_created and data:
-                self._create_register_backup(protocol, data)
+            for reg in registers_to_read:
+                if reg not in REGISTERS:
+                    continue
+                    
+                response = conn.read_register(reg)
+                
+                if response.success and response.data:
+                    # Get parser for this register
+                    parser_name = REGISTERS[reg].get("parse", "raw")
+                    if parser_name in PARSERS:
+                        parsed = PARSERS[parser_name](response.data)
+                        # Flatten parsed data into main dict
+                        for key, value in parsed.items():
+                            if not key.startswith("parse_"):
+                                data[key] = value
+                    else:
+                        data[f"{reg}_raw"] = response.data
+                else:
+                    _LOGGER.debug(
+                        "Failed to read register %s: %s", 
+                        reg, 
+                        response.error_message
+                    )
             
             # Add metadata
             data["_firmware"] = self.firmware_version
-            data["_firmware_date"] = self.firmware_date
             
-            _LOGGER.debug("Fetched data: %s", data)
+            _LOGGER.debug("Fetched data keys: %s", list(data.keys()))
             return data
             
         except Exception:
-            # On error, close connection so it gets reopened on next try
-            protocol.close()
+            # On error, disconnect so it gets reconnected on next try
+            conn.disconnect()
             raise
-
-    def _create_register_backup(self, protocol: THZProtocol, parsed_data: dict[str, Any]) -> None:
-        """Create a backup of all register raw data on first read.
-        
-        This backup can be used to restore settings if something goes wrong.
-        The backup is stored in the Home Assistant config directory.
-        """
-        try:
-            # Get raw register data
-            raw_registers = protocol.get_all_raw_registers()
-            
-            # Build backup data structure
-            backup_data = {
-                "created_at": datetime.now().isoformat(),
-                "firmware_version": self.firmware_version,
-                "firmware_date": self.firmware_date,
-                "serial_port": self._port,
-                "baudrate": self._baudrate,
-                "raw_registers": raw_registers,
-                "parsed_data": {k: v for k, v in parsed_data.items() if not k.startswith("_")},
-            }
-            
-            # Create backup directory
-            backup_dir = self.hass.config.path("backups", "hass_thz")
-            os.makedirs(backup_dir, exist_ok=True)
-            
-            # Create backup filename with timestamp
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            safe_port = self._port.replace("/", "_").replace("\\", "_").replace(":", "")
-            backup_filename = f"thz_backup_{safe_port}_{timestamp}.json"
-            self._backup_path = os.path.join(backup_dir, backup_filename)
-            
-            # Write backup file
-            with open(self._backup_path, "w", encoding="utf-8") as f:
-                json.dump(backup_data, f, indent=2, ensure_ascii=False, default=str)
-            
-            self._backup_created = True
-            _LOGGER.info(
-                "Created register backup at: %s (Firmware: %s)", 
-                self._backup_path, 
-                self.firmware_version
-            )
-            
-        except Exception as err:
-            _LOGGER.warning("Failed to create register backup: %s", err)
-            # Don't fail the integration if backup fails
-            self._backup_created = True  # Don't retry
 
     async def async_close(self) -> None:
         """Close the connection."""
-        if self._protocol:
-            await self.hass.async_add_executor_job(self._protocol.close)
-            self._protocol = None
+        if self._connection:
+            await self.hass.async_add_executor_job(self._connection.disconnect)
+            self._connection = None
 
     @property
     def device_info(self) -> dict[str, Any]:
