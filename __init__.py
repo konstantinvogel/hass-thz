@@ -51,7 +51,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
 
     # Initialize device based on connection type
     if conn_type == "ip":
-        device = THZDevice(connection="ip", host=data["host"], port=data["port"])
+        device = THZDevice(connection="ip", host=data["host"], tcp_port=data["port"])
     elif conn_type == "usb":
         device = THZDevice(connection="usb", port=data["device"])
     else:
@@ -62,11 +62,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
 
     # Register device in Home Assistant device registry
     dev_reg = dr.async_get(hass)
-    unique_id = (
-        getattr(device, "unique_id", None)
-        or getattr(device, "serial", None)
-        or f"{conn_type}-{data.get('host') or data.get('device')}"
-    )
+    unique_id = device.unique_id or f"thz_{conn_type}"
     device_name = data.get("alias") or f"THZ {data.get('host') or data.get('device')}"
 
     device_entry = dev_reg.async_get_or_create(

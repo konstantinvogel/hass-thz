@@ -10,6 +10,7 @@ from typing import Any
 from homeassistant.components.number import NumberEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
@@ -109,6 +110,17 @@ class THZNumber(NumberEntity):
             unique_id or f"thz_set_{command.lower()}_{name.lower().replace(' ', '_')}"
         )
         self._attr_native_value: float | None = None
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return device information for device registry."""
+        return DeviceInfo(
+            identifiers={(DOMAIN, getattr(self._device, 'unique_id', None) or 'thz_device')},
+            name="THZ Wärmepumpe",
+            manufacturer="Stiebel Eltron / Tecalor",
+            model="THZ",
+            sw_version=self._device.firmware_version,
+        )
 
     @property
     def native_value(self) -> float | None:

@@ -94,6 +94,14 @@ class THZDevice:
         self._last_access = 0.0
         self._min_interval = MIN_REQUEST_INTERVAL
 
+        # Unique ID for device registry (set after initialization)
+        self._unique_id: str | None = None
+
+    @property
+    def unique_id(self) -> str | None:
+        """Return unique identifier for this device."""
+        return self._unique_id
+
     @property
     def ser(self) -> serial.Serial | socket.socket | None:
         """Return the underlying connection object."""
@@ -133,6 +141,12 @@ class THZDevice:
         # Load firmware-specific register maps
         self._register_map_manager = RegisterMapManager(self._firmware_version)
         self._write_register_map_manager = RegisterMapManagerWrite(self._firmware_version)
+
+        # Generate unique ID based on connection parameters
+        if self.connection == "usb":
+            self._unique_id = f"thz_{self.port.replace('/', '_').replace(':', '_')}"
+        else:
+            self._unique_id = f"thz_{self.host}_{self.tcp_port}"
 
         self._cache = {}
         self._cache_duration = DEFAULT_CACHE_DURATION
@@ -205,6 +219,8 @@ class THZDevice:
         timeout = self.read_timeout
         data = bytearray()
 
+        _LOGGER.debug("Sending telegram: %s", telegram.hex())
+
         # 1. Send greeting (0x02)
         self._write_bytes(STARTOFTEXT)
 
@@ -231,13 +247,17 @@ class THZDevice:
             chunk = self._read_available()
             if chunk:
                 data.extend(chunk)
-                if len(data) >= 8 and data[-2:] == DATALINKESCAPE + ENDOFTEXT:
+                _LOGGER.debug("Received chunk: %s (total: %d bytes)", chunk.hex(), len(data))
+                if len(data) >= 2 and data[-2:] == DATALINKESCAPE + ENDOFTEXT:
                     break
             else:
                 time.sleep(0.01)
 
-        if not (len(data) >= 8 and data[-2:] == DATALINKESCAPE + ENDOFTEXT):
-            raise ValueError("No valid response after data request")
+        if not (len(data) >= 2 and data[-2:] == DATALINKESCAPE + ENDOFTEXT):
+            _LOGGER.error("No valid response. Received %d bytes: %s", len(data), data.hex() if data else "empty")
+            raise ValueError(f"No valid response after data request. Got: {data.hex() if data else 'empty'}")
+
+        _LOGGER.debug("Response complete: %s", data.hex())
 
         # 7. End communication
         self._write_bytes(STARTOFTEXT)
@@ -462,10 +482,11 @@ class THZDevice:
         """
         Writes a value to the THZ device.
         addr_bytes: bytes (e.g. b'\xFB')
-        value: integer value to write
+        value: bytes value to write
         """
+        _LOGGER.debug("write_value called: addr=%s, value=%s", addr_bytes.hex(), value.hex())
         self.read_write_register(addr_bytes, "set", value)
-        _LOGGER.debug(f"Wert {value} an Adresse {addr_bytes.hex()} geschrieben.")
+        _LOGGER.info("Wert %s an Adresse %s geschrieben.", value.hex(), addr_bytes.hex())
     
     def read_block(self, addr_bytes: bytes, get_or_set: str) -> bytes:
         """

@@ -11,6 +11,7 @@ from typing import Any
 from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
@@ -174,6 +175,17 @@ class THZSensor(SensorEntity):
         self._attr_translation_key = entry.get("translation_key")
         self._attr_unique_id = (
             f"thz_{self._block.hex()}_{self._offset}_{self._name.lower().replace(' ', '_')}"
+        )
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return device information for device registry."""
+        return DeviceInfo(
+            identifiers={(DOMAIN, getattr(self._device, 'unique_id', None) or 'thz_device')},
+            name="THZ Wärmepumpe",
+            manufacturer="Stiebel Eltron / Tecalor",
+            model="THZ",
+            sw_version=self._device.firmware_version,
         )
 
     @property

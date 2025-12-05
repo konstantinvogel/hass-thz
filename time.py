@@ -12,8 +12,10 @@ from datetime import time
 from homeassistant.components.time import TimeEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .const import DOMAIN
 from .register_maps.register_map_manager import RegisterMapManagerWrite
 from .thz_device import THZDevice
 
@@ -96,8 +98,8 @@ async def async_setup_entry(
         async_add_entities: Callback to add entities to Home Assistant.
     """
     entities: list[THZTime] = []
-    write_manager: RegisterMapManagerWrite = hass.data["thz"]["write_manager"]
-    device: THZDevice = hass.data["thz"]["device"]
+    write_manager: RegisterMapManagerWrite = hass.data[DOMAIN]["write_manager"]
+    device: THZDevice = hass.data[DOMAIN]["device"]
     write_registers = write_manager.get_all_registers()
 
     _LOGGER.debug("write_registers: %s", write_registers)
@@ -158,6 +160,17 @@ class THZTime(TimeEntity):
             unique_id or f"thz_time_{command.lower()}_{name.lower().replace(' ', '_')}"
         )
         self._attr_native_value: time | None = None
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return device information for device registry."""
+        return DeviceInfo(
+            identifiers={(DOMAIN, getattr(self._device, 'unique_id', None) or 'thz_device')},
+            name="THZ Wärmepumpe",
+            manufacturer="Stiebel Eltron / Tecalor",
+            model="THZ",
+            sw_version=self._device.firmware_version,
+        )
 
     @property
     def native_value(self) -> time | None:
