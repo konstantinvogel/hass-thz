@@ -49,9 +49,9 @@ def dump_registers(port: str, baudrate: int = 115200) -> dict:
         conn.connect()
         print("Connected!\n")
         
-        # Read firmware first
+        # Read firmware first - use send_command for raw data
         print("Reading firmware (FD)...")
-        response = conn.read_register("FD")
+        response = conn.send_command("FD")
         if response.success and response.data:
             result["raw"]["FD"] = response.data
             fw_data = parse_firmware(response.data)
@@ -69,7 +69,8 @@ def dump_registers(port: str, baudrate: int = 115200) -> dict:
             reg_name = reg_info.get("name", reg_id)
             print(f"Reading {reg_name} ({reg_id})...")
             
-            response = conn.read_register(reg_id)
+            # Use send_command to get raw THZResponse
+            response = conn.send_command(reg_id)
             
             if response.success and response.data:
                 result["raw"][reg_id] = response.data
