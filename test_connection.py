@@ -59,10 +59,18 @@ def main():
         
         # Step 1: Send command to read firmware (FD)
         # Format: 0100 + checksum + FD + 1003
-        # Checksum = (01 + 00 + XX + FD + 10 + 03) % 256 where XX is skipped
-        # = (01 + 00 + FD + 10 + 03) % 256 = (1 + 0 + 253 + 16 + 3) % 256 = 273 % 256 = 17 = 0x11
-        cmd = "010011FD1003"
+        # 
+        # FHEM THZ_checksum calculates over: header + XX + cmd + footer
+        # But EXCLUDES: position 4-5 (XX placeholder) AND last 4 chars (footer)
+        # 
+        # String: 0100XXFD1003
+        # Positions: 01(0-1) 00(2-3) XX(4-5) FD(6-7) 10(8-9) 03(10-11)
+        # Calculate: 01 + 00 + FD = 0x01 + 0x00 + 0xFD = 254 = 0xFE
+        
+        checksum = (0x01 + 0x00 + 0xFD) % 256  # = 0xFE
+        cmd = f"0100{checksum:02X}FD1003"
         print(f"\n--- Step 1: Sending command: {cmd} ---")
+        print(f"  (Checksum calculated: 0x{checksum:02X})")
         ser.write(bytes.fromhex(cmd))
         ser.flush()
         

@@ -453,25 +453,39 @@ class THZProtocol:
         Based on FHEM THZ_encodecommand:
         Format: header + checksum + cmd + footer
         
-        Checksum is calculated over: header + "XX" + cmd + footer
-        (where XX is a placeholder for checksum position)
+        FHEM calculates checksum like this:
+        1. Build string: header(0100) + XX + cmd + footer(1003)
+        2. Sum all bytes EXCEPT position 4-5 (XX) AND last 4 chars (footer)
+        3. Checksum = sum mod 256
         
-        Then escape sequences are applied to checksum + cmd portion.
+        Example for cmd "FD":
+        String: 0100XXFD1003
+        Calculate: 01 + 00 + FD = 0xFE (skip XX at pos 4-5, skip footer 1003)
         """
         header = "0100"
         footer = "1003"
         cmd = register.upper()
         
-        # Calculate checksum over: header + XX (placeholder) + cmd + footer
-        # The checksum itself is NOT included in the calculation
-        checksum_input = header + "XX" + cmd + footer
+        # Build the template string: header + XX + cmd + footer
+        template = header + "XX" + cmd + footer
         
-        # Sum all bytes except the XX placeholder (positions 4-5)
+        # Calculate checksum:
+        # - Skip positions 4-5 (XX placeholder)
+        # - Skip last 4 characters (footer)
         checksum = 0
-        for i in range(0, len(checksum_input) - 4, 2):  # -4 to skip footer in loop
-            if i != 4:  # Skip the XX placeholder at position 4
-                checksum += int(checksum_input[i:i+2], 16)
+        data_without_footer = template[:-4]  # Remove footer from calculation
+        
+        for i in range(0, len(data_without_footer), 2):
+            if i == 4:  # Skip the XX placeholder at position 4-5
+                continue
+            byte_hex = data_without_footer[i:i+2]
+            if byte_hex != "XX":  # Extra safety check
+                checksum += int(byte_hex, 16)
+        
         checksum = checksum % 256
+        
+        _LOGGER.debug("Checksum for %s: 0x%02X (sum of %s)", cmd, checksum, 
+                      [data_without_footer[i:i+2] for i in range(0, len(data_without_footer), 2) if i != 4])
         
         # Build: checksum + cmd (this part gets escaped)
         data_to_escape = f"{checksum:02X}" + cmd
@@ -482,22 +496,24 @@ class THZProtocol:
         escaped = ""
         i = 0
         while i < len(data_to_escape):
-            two_chars = data_to_escape[i:i+2]
-            if two_chars == "10":
-                escaped += "1010"
-                i += 2
-            elif two_chars == "2B":
-                escaped += "2B18"
-                i += 2
-            else:
-                escaped += data_to_escape[i]
-                i += 1
+            if i + 1 < len(data_to_escape):
+                two_chars = data_to_escape[i:i+2]
+                if two_chars == "10":
+                    escaped += "1010"
+                    i += 2
+                    continue
+                elif two_chars == "2B":
+                    escaped += "2B18"
+                    i += 2
+                    continue
+            escaped += data_to_escape[i]
+            i += 1
         
         # Final message: header + escaped(checksum + cmd) + footer
         message_hex = header + escaped + footer
         message = bytes.fromhex(message_hex)
         
-        _LOGGER.debug("Encoded command for %s: %s", register, message.hex())
+        _LOGGER.debug("Encoded command for %s: %s", register, message.hex().upper())
         return message
 
     def _read_byte(self, timeout: float = READ_TIMEOUT) -> bytes | None:
