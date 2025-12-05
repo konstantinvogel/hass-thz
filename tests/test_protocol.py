@@ -305,16 +305,17 @@ class TestParseTime:
     
     def test_parse_time_basic(self):
         """Test parsing date/time."""
-        # FC + weekday + hour + minute + second + year(4) + month + day
-        # Thursday (4), 14:30:00, 2024-12-05
-        data = "FC" + "04" + "0E" + "1E" + "00" + "07E8" + "0C" + "05"
+        # FC + weekday(2) + hour(4) + minute(4) + second(4) + year(4) + padding(4) + month(4) + day(4)
+        # Thursday (4), 14:30:00, 2025-12-05
+        # Format: FC 04 000E 001E 0000 0019 0000 000C 0005
+        data = "FC" + "04" + "000E" + "001E" + "0000" + "0019" + "0000" + "000C" + "0005"
         result = parse_time(data)
         
         assert result["weekday"] == 4
         assert result["hour"] == 14
         assert result["minute"] == 30
         assert result["second"] == 0
-        assert result["year"] == 2024
+        assert result["year"] == 2025
         assert result["month"] == 12
         assert result["day"] == 5
 
